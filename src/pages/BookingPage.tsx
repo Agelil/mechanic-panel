@@ -36,6 +36,7 @@ export default function BookingPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
   const [form, setForm] = useState({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
+  const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
