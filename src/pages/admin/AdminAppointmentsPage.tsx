@@ -52,7 +52,9 @@ export default function AdminAppointmentsPage() {
 
   const load = async () => {
     const { data } = await supabase.from("appointments").select("*").order("created_at", { ascending: false });
-    setAppointments((data as unknown as Appointment[]) || []);
+    // Decrypt PII fields (ФЗ-152) before display
+    const decrypted = ((data as unknown as Appointment[]) || []).map((a) => decryptPII(a));
+    setAppointments(decrypted);
     setLoading(false);
   };
 
