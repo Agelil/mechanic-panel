@@ -58,6 +58,17 @@ serve(async (req) => {
       });
     }
 
+    // TYPE: new_registration — notify master/admin about new user signup
+    if (type === 'new_registration') {
+      if (masterChatId) {
+        const { email: regEmail, user_id } = payload;
+        const now = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+        const text = `👤 <b>НОВАЯ РЕГИСТРАЦИЯ — Сервис-Точка</b>\n\n📧 <b>Email:</b> ${regEmail}\n🔑 <b>ID:</b> <code>${user_id}</code>\n\n⏳ Ожидает подтверждения доступа.\n🕐 <i>${now} МСК</i>\n\n<i>Откройте админ-панель → Управление доступом для одобрения.</i>`;
+        await sendTelegramMessage(botToken, masterChatId, text);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // TYPE: new_appointment — notify master
     if (type === 'new_appointment') {
       if ((notificationType === 'master' || notificationType === 'both') && masterChatId) {
