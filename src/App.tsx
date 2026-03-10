@@ -13,6 +13,7 @@ import PortfolioPage from "@/pages/PortfolioPage";
 import BookingPage from "@/pages/BookingPage";
 import CabinetPage from "@/pages/CabinetPage";
 import NotFound from "@/pages/NotFound";
+import PrivacyPage from "@/pages/PrivacyPage";
 
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
