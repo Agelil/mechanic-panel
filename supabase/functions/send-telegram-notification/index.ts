@@ -105,16 +105,26 @@ serve(async (req) => {
       if ((notificationType === 'master' || notificationType === 'both') && masterChatId) {
         const { name, phone, car_make, service_type, services, total_price, message } = payload;
         const now = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
-        
         let servicesText = '';
         if (services && Array.isArray(services) && services.length > 0) {
           servicesText = '\n📋 <b>Услуги:</b>\n' + services.map((s: { name: string; price_from: number }) => `  • ${s.name} — от ${s.price_from.toLocaleString('ru-RU')} руб.`).join('\n');
         } else if (service_type) {
           servicesText = `\n🔧 <b>Услуга:</b> ${service_type}`;
         }
-
         const text = `🔔 <b>НОВАЯ ЗАЯВКА — Сервис-Точка</b>\n\n👤 <b>Клиент:</b> ${name}\n📞 <b>Телефон:</b> ${phone}\n🚗 <b>Автомобиль:</b> ${car_make}${servicesText}${total_price ? `\n💰 <b>Предв. стоимость:</b> от ${total_price.toLocaleString('ru-RU')} руб.` : ''}${message ? `\n💬 <b>Комментарий:</b> ${message}` : ''}\n\n🕐 <i>${now} МСК</i>`;
         await sendTelegramMessage(botToken, masterChatId, text);
+
+        // Also notify groups with notify_new_appointments = true
+        const { data: apptGroups } = await db.from('user_groups').select('telegram_chat_id, permissions');
+        for (const group of (apptGroups || [])) {
+          const perms = group.permissions as Record<string, boolean>;
+          if (perms?.notify_new_appointments && group.telegram_chat_id && group.telegram_chat_id !== masterChatId) {
+            // Only include price if group has view_prices permission
+            const priceText = perms?.view_prices && total_price ? `\n💰 от ${total_price.toLocaleString('ru-RU')} руб.` : '';
+            const groupText = `🔔 <b>НОВАЯ ЗАЯВКА</b>\n\n🚗 ${car_make}${servicesText}${priceText}\n🕐 <i>${now} МСК</i>`;
+            await sendTelegramMessage(botToken, group.telegram_chat_id, groupText);
+          }
+        }
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
