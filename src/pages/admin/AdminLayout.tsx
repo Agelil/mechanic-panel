@@ -3,37 +3,41 @@ import { supabase } from "@/integrations/supabase/client";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight, Tag, Users
+  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUserRole } from "@/hooks/use-user-role";
 
-const navItems = [
-  { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true },
-  { href: "/admin/services", label: "Услуги", icon: Wrench },
-  { href: "/admin/portfolio", label: "Портфолио", icon: Images },
-  { href: "/admin/appointments", label: "Заявки", icon: ClipboardList },
-  { href: "/admin/promotions", label: "Акции", icon: Tag },
-  { href: "/admin/clients", label: "Клиенты", icon: Users },
-  { href: "/admin/settings", label: "Настройки", icon: Settings },
+const allNavItems = [
+  { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, permission: "view_dashboard" },
+  { href: "/admin/appointments", label: "Заявки", icon: ClipboardList, permission: "view_appointments" },
+  { href: "/admin/services", label: "Услуги", icon: Wrench, permission: "view_services" },
+  { href: "/admin/categories", label: "Категории", icon: FolderOpen, permission: "view_categories" },
+  { href: "/admin/portfolio", label: "Портфолио", icon: Images, permission: "view_portfolio" },
+  { href: "/admin/promotions", label: "Акции", icon: Tag, permission: "view_promotions" },
+  { href: "/admin/clients", label: "Клиенты", icon: Users, permission: "view_clients" },
+  { href: "/admin/users", label: "Пользователи", icon: UserCog, permission: "view_users" },
+  { href: "/admin/settings", label: "Настройки", icon: Settings, permission: "view_settings" },
 ];
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [userEmail, setUserEmail] = useState("");
+  const { role, loading: roleLoading, hasPermission } = useUserRole();
 
   useEffect(() => {
     supabase.auth.onAuthStateChange((event, session) => {
       if (!session) navigate("/admin/login");
       else setUserEmail(session.user.email || "");
-      setLoading(false);
+      setAuthLoading(false);
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate("/admin/login");
       else setUserEmail(session?.user?.email || "");
-      setLoading(false);
+      setAuthLoading(false);
     });
   }, [navigate]);
 
@@ -42,7 +46,7 @@ export default function AdminLayout() {
     navigate("/admin/login");
   };
 
-  if (loading) {
+  if (authLoading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-2 border-orange border-t-transparent rounded-full animate-spin" />
@@ -50,9 +54,21 @@ export default function AdminLayout() {
     );
   }
 
-  const isActive = (item: typeof navItems[0]) => {
+  const isActive = (item: typeof allNavItems[0]) => {
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
+  };
+
+  // Filter nav by role permissions (if no role, show all for backward compat with old admin users)
+  const navItems = allNavItems.filter((item) => {
+    if (!role) return true; // legacy: no role assigned = admin-level access
+    return hasPermission(item.permission);
+  });
+
+  const ROLE_BADGE: Record<string, string> = {
+    admin: "ADMIN",
+    manager: "MANAGER",
+    master: "MASTER",
   };
 
   return (
@@ -101,7 +117,10 @@ export default function AdminLayout() {
 
         {/* Footer */}
         <div className="border-t-2 border-sidebar-border p-4">
-          <p className="font-mono text-xs text-muted-foreground mb-3 truncate">{userEmail}</p>
+          <p className="font-mono text-xs text-muted-foreground mb-1 truncate">{userEmail}</p>
+          {role && (
+            <p className="font-mono text-xs text-orange mb-3">{ROLE_BADGE[role]}</p>
+          )}
           <div className="flex gap-2">
             <Link
               to="/"
@@ -139,6 +158,11 @@ export default function AdminLayout() {
           <div className="font-mono text-xs text-muted-foreground">
             {navItems.find(isActive)?.label || "Admin"}
           </div>
+          {role && (
+            <span className="ml-auto font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
+              {ROLE_BADGE[role]}
+            </span>
+          )}
         </header>
 
         <main className="flex-1 p-6">

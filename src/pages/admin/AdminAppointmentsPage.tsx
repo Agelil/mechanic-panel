@@ -60,25 +60,27 @@ export default function AdminAppointmentsPage() {
   const updateStatus = async (id: string, status: string) => {
     await supabase.from("appointments").update({ status }).eq("id", id);
     const appt = appointments.find((a) => a.id === id);
+    const updatedAppt = appt ? { ...appt, status } : null;
     setAppointments((prev) => prev.map((a) => a.id === id ? { ...a, status } : a));
 
+    if (!updatedAppt) return;
+
     // Trigger Telegram notification
-    if (NOTIFY_STATUSES.includes(status) && appt) {
-      try {
-        await supabase.functions.invoke("send-telegram-notification", {
-          body: { type: "status_changed", appointment_id: id, new_status: status, appointment: { ...appt, status } },
-        });
-        toast({ title: "Уведомление отправлено", description: `Клиент уведомлён об изменении статуса` });
-      } catch {
-        // non-critical
+    try {
+      await supabase.functions.invoke("send-telegram-notification", {
+        body: { type: "status_changed", appointment_id: id, new_status: status, appointment: updatedAppt },
+      });
+      if (NOTIFY_STATUSES.includes(status)) {
+        toast({ title: "Уведомление отправлено", description: "Клиент уведомлён об изменении статуса" });
       }
-    } else if (appt) {
-      try {
-        await supabase.functions.invoke("send-telegram-notification", {
-          body: { type: "status_changed", appointment_id: id, new_status: status, appointment: { ...appt, status } },
-        });
-      } catch { /* skip */ }
-    }
+    } catch { /* non-critical */ }
+
+    // Sync to Google Sheets
+    try {
+      await supabase.functions.invoke("sync-google-sheets", {
+        body: { type: "updated", appointment: updatedAppt },
+      });
+    } catch { /* non-critical */ }
   };
 
   const uploadPhoto = async (id: string, file: File) => {

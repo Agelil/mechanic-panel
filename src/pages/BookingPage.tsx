@@ -1,8 +1,21 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Category {
+  id: string;
+  name: string;
+  sort_order: number;
+}
 
 interface ServiceOption {
   id: string;
@@ -10,6 +23,7 @@ interface ServiceOption {
   price_from: number;
   price_to: number | null;
   category: string | null;
+  category_id: string | null;
 }
 
 export default function BookingPage() {
@@ -17,18 +31,35 @@ export default function BookingPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
   const [form, setForm] = useState({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    supabase
-      .from("services")
-      .select("id, name, price_from, price_to, category")
-      .eq("is_active", true)
-      .order("sort_order")
-      .then(({ data }) => setServices(data || []));
+    Promise.all([
+      supabase
+        .from("services")
+        .select("id, name, price_from, price_to, category, category_id")
+        .eq("is_active", true)
+        .order("sort_order"),
+      supabase
+        .from("service_categories")
+        .select("*")
+        .order("sort_order"),
+    ]).then(([{ data: svcData }, { data: catData }]) => {
+      setServices(svcData || []);
+      setCategories(catData || []);
+    });
   }, []);
+
+  const filteredServices = selectedCategory === "all"
+    ? services
+    : services.filter((s) => s.category_id === selectedCategory || s.category === selectedCategory);
+
+  // Fallback: group by category text if no category_id system
+  const hasCategories = categories.length > 0;
 
   const totalMin = selectedServices.reduce((sum, s) => sum + s.price_from, 0);
   const totalMax = selectedServices.reduce((sum, s) => sum + (s.price_to || s.price_from), 0);
@@ -87,6 +118,25 @@ export default function BookingPage() {
             message: form.message.trim(),
           },
         });
+        // Sync to Google Sheets
+        await supabase.functions.invoke("sync-google-sheets", {
+          body: {
+            type: "created",
+            appointment: {
+              id: "pending",
+              created_at: new Date().toISOString(),
+              name: form.name.trim(),
+              phone: form.phone.trim(),
+              car_make: form.car_make.trim(),
+              car_vin: form.car_vin.trim() || null,
+              services: selectedServices,
+              service_type: serviceNames,
+              total_price: totalMin,
+              message: form.message.trim(),
+              status: "new",
+            },
+          },
+        });
       } catch { /* non-critical */ }
 
       setSubmitted(true);
@@ -102,8 +152,8 @@ export default function BookingPage() {
     if (errors[field]) setErrors((p) => { const e = { ...p }; delete e[field]; return e; });
   };
 
-  // Group by category
-  const categories = Array.from(new Set(services.map((s) => s.category || "Прочее")));
+  // Text-based category grouping (fallback)
+  const textCategories = Array.from(new Set(services.map((s) => s.category || "Прочее")));
 
   if (submitted) {
     return (
@@ -133,7 +183,12 @@ export default function BookingPage() {
             </div>
           )}
           <button
-            onClick={() => { setSubmitted(false); setForm({ name: "", phone: "", car_make: "", car_vin: "", message: "" }); setSelectedServices([]); }}
+            onClick={() => {
+              setSubmitted(false);
+              setForm({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
+              setSelectedServices([]);
+              setSelectedCategory("all");
+            }}
             className="font-mono text-sm text-orange border border-orange px-6 py-3 hover:bg-orange hover:text-primary-foreground transition-colors"
           >
             Оставить ещё одну заявку
@@ -169,9 +224,13 @@ export default function BookingPage() {
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <User className="w-3.5 h-3.5 text-orange" /> Ваше имя *
                 </label>
-                <input type="text" value={form.name} onChange={(e) => handleChange("name", e.target.value)}
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
                   placeholder="Иван Иванов"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.name ? "border-destructive" : "border-border"}`} />
+                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.name ? "border-destructive" : "border-border"}`}
+                />
                 {errors.name && <p className="font-mono text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
@@ -179,9 +238,13 @@ export default function BookingPage() {
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <Phone className="w-3.5 h-3.5 text-orange" /> Телефон *
                 </label>
-                <input type="tel" value={form.phone} onChange={(e) => handleChange("phone", e.target.value)}
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => handleChange("phone", e.target.value)}
                   placeholder="+7 (812) 000-00-00"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.phone ? "border-destructive" : "border-border"}`} />
+                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.phone ? "border-destructive" : "border-border"}`}
+                />
                 {errors.phone && <p className="font-mono text-xs text-destructive mt-1">{errors.phone}</p>}
               </div>
 
@@ -189,9 +252,13 @@ export default function BookingPage() {
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <Car className="w-3.5 h-3.5 text-orange" /> Марка и модель *
                 </label>
-                <input type="text" value={form.car_make} onChange={(e) => handleChange("car_make", e.target.value)}
+                <input
+                  type="text"
+                  value={form.car_make}
+                  onChange={(e) => handleChange("car_make", e.target.value)}
                   placeholder="Toyota Camry 2020"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`} />
+                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`}
+                />
                 {errors.car_make && <p className="font-mono text-xs text-destructive mt-1">{errors.car_make}</p>}
               </div>
 
@@ -199,49 +266,103 @@ export default function BookingPage() {
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <Car className="w-3.5 h-3.5 text-muted-foreground" /> VIN номер (необязательно)
                 </label>
-                <input type="text" value={form.car_vin} onChange={(e) => handleChange("car_vin", e.target.value)}
-                  placeholder="WAUZZZ8K9BA012345" maxLength={17}
-                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase" />
+                <input
+                  type="text"
+                  value={form.car_vin}
+                  onChange={(e) => handleChange("car_vin", e.target.value)}
+                  placeholder="WAUZZZ8K9BA012345"
+                  maxLength={17}
+                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase"
+                />
               </div>
 
               <div>
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <MessageSquare className="w-3.5 h-3.5 text-orange" /> Комментарий
                 </label>
-                <textarea value={form.message} onChange={(e) => handleChange("message", e.target.value)}
-                  placeholder="Опишите проблему или укажите удобное время..." rows={4}
-                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors resize-none" />
+                <textarea
+                  value={form.message}
+                  onChange={(e) => handleChange("message", e.target.value)}
+                  placeholder="Опишите проблему или укажите удобное время..."
+                  rows={4}
+                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors resize-none"
+                />
               </div>
             </div>
 
-            {/* Right column: services */}
+            {/* Right column: two-level service selection */}
             <div>
               <h2 className="font-display text-3xl tracking-wider mb-6">ВЫБЕРИТЕ УСЛУГИ</h2>
-              {errors.services && <p className="font-mono text-xs text-destructive mb-3 border border-destructive/20 bg-destructive/10 px-3 py-2">{errors.services}</p>}
+              {errors.services && (
+                <p className="font-mono text-xs text-destructive mb-3 border border-destructive/20 bg-destructive/10 px-3 py-2">
+                  {errors.services}
+                </p>
+              )}
 
-              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-                {categories.map((cat) => (
-                  <div key={cat}>
-                    <p className="font-mono text-xs text-orange uppercase tracking-widest mb-2 border-b border-border pb-1">{cat}</p>
-                    <div className="space-y-1">
-                      {services.filter((s) => (s.category || "Прочее") === cat).map((svc) => {
-                        const checked = !!selectedServices.find((s) => s.id === svc.id);
-                        return (
-                          <label key={svc.id} className={`flex items-start gap-3 p-3 cursor-pointer transition-colors border-2 ${checked ? "border-orange bg-orange/5" : "border-transparent hover:bg-surface"}`}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleService(svc)}
-                              className="mt-0.5 accent-orange w-4 h-4 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <span className="font-mono text-sm block">{svc.name}</span>
-                              <span className="font-mono text-xs text-orange">
-                                от {formatPrice(svc.price_from)}{svc.price_to ? ` до ${formatPrice(svc.price_to)}` : ""}
-                              </span>
-                            </div>
-                          </label>
-                        );
-                      })}
+              {/* Step 1: Category selector (only if categories exist) */}
+              {hasCategories && (
+                <div className="mb-4">
+                  <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
+                    <span className="text-orange">01</span> / Категория услуг
+                  </label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="w-full bg-surface border-2 border-border font-mono text-sm rounded-none h-12 focus:border-orange">
+                      <SelectValue placeholder="Все категории" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="font-mono text-sm">Все категории</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id} className="font-mono text-sm">
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedCategory !== "all" && (
+                    <div className="flex items-center gap-1 mt-2">
+                      <ChevronRight className="w-3 h-3 text-orange" />
+                      <span className="font-mono text-xs text-orange">
+                        {categories.find((c) => c.id === selectedCategory)?.name} — выберите услуги ниже
+                      </span>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: Services */}
+              {hasCategories && (
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
+                  <span className="text-orange">02</span> / Услуги {selectedCategory !== "all" && <span className="text-orange">({filteredServices.length})</span>}
+                </label>
+              )}
+
+              <div className="space-y-1 max-h-[380px] overflow-y-auto pr-1">
+                {/* Show grouped if no category system or "all" selected */}
+                {!hasCategories ? (
+                  textCategories.map((cat) => (
+                    <div key={cat} className="mb-3">
+                      <p className="font-mono text-xs text-orange uppercase tracking-widest mb-2 border-b border-border pb-1">{cat}</p>
+                      <div className="space-y-1">
+                        {services.filter((s) => (s.category || "Прочее") === cat).map((svc) => (
+                          <ServiceCheckbox key={svc.id} svc={svc} checked={!!selectedServices.find((s) => s.id === svc.id)} onToggle={() => toggleService(svc)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : filteredServices.length === 0 ? (
+                  <div className="py-8 text-center border-2 border-dashed border-border">
+                    <p className="font-mono text-sm text-muted-foreground">В этой категории нет услуг</p>
                   </div>
-                ))}
+                ) : (
+                  filteredServices.map((svc) => (
+                    <ServiceCheckbox
+                      key={svc.id}
+                      svc={svc}
+                      checked={!!selectedServices.find((s) => s.id === svc.id)}
+                      onToggle={() => toggleService(svc)}
+                    />
+                  ))
+                )}
               </div>
 
               {/* Price summary */}
@@ -274,9 +395,16 @@ export default function BookingPage() {
 
             {/* Submit */}
             <div className="lg:col-span-2">
-              <button type="submit" disabled={loading}
-                className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3">
-                {loading ? <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</> : "Отправить заявку →"}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</>
+                ) : (
+                  "Отправить заявку →"
+                )}
               </button>
               <p className="font-mono text-xs text-muted-foreground text-center mt-3">
                 Нажимая кнопку, вы соглашаетесь на обработку персональных данных
@@ -286,5 +414,32 @@ export default function BookingPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function ServiceCheckbox({ svc, checked, onToggle }: {
+  svc: ServiceOption;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 p-3 cursor-pointer transition-colors border-2 ${
+        checked ? "border-orange bg-orange/5" : "border-transparent hover:bg-surface"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="mt-0.5 accent-orange w-4 h-4 flex-shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <span className="font-mono text-sm block">{svc.name}</span>
+        <span className="font-mono text-xs text-orange">
+          от {formatPrice(svc.price_from)}{svc.price_to ? ` до ${formatPrice(svc.price_to)}` : ""}
+        </span>
+      </div>
+    </label>
   );
 }
