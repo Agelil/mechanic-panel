@@ -69,7 +69,38 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // TYPE: new_appointment — notify master
+    // TYPE: supply_order — notify groups with notify_supply_orders permission
+    if (type === 'supply_order') {
+      const { master_name, supply_type, item_name, quantity, unit, urgency, appointment_id } = payload;
+      const supplyTypeLabels: Record<string, string> = { part: '🔩 Запчасть', tool: '🔧 Инструмент', consumable: '🧴 Расходники' };
+      const urgencyLabel = urgency === 'urgent' ? '🚨 СРОЧНО' : '📋 Планово';
+      const now = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+
+      // Get appointment license plate if linked
+      let licenseInfo = '';
+      if (appointment_id) {
+        const { data: appt } = await db.from('appointments').select('license_plate, car_make').eq('id', appointment_id).maybeSingle();
+        if (appt) licenseInfo = `\n🚗 <b>Авто:</b> ${appt.car_make}${appt.license_plate ? ` (${appt.license_plate})` : ''}`;
+      }
+
+      const text = `🛠 <b>ЗАЯВКА НА СНАБЖЕНИЕ — Сервис-Точка</b>\n\n👤 <b>Мастер:</b> ${master_name}\n📦 <b>Тип:</b> ${supplyTypeLabels[supply_type] || supply_type}\n📝 <b>Наименование:</b> ${item_name}\n🔢 <b>Количество:</b> ${quantity} ${unit}\n⚡ <b>Срочность:</b> ${urgencyLabel}${licenseInfo}\n\n🕐 <i>${now} МСК</i>`;
+
+      // Notify masterChatId (admin)
+      if (masterChatId) await sendTelegramMessage(botToken, masterChatId, text);
+
+      // Also notify groups with notify_supply_orders = true
+      const { data: supplyGroups } = await db.from('user_groups').select('telegram_chat_id, permissions');
+      for (const group of (supplyGroups || [])) {
+        const perms = group.permissions as Record<string, boolean>;
+        if (perms?.notify_supply_orders && group.telegram_chat_id && group.telegram_chat_id !== masterChatId) {
+          await sendTelegramMessage(botToken, group.telegram_chat_id, text);
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // TYPE: new_appointment — notify master + groups with notify_new_appointments permission
     if (type === 'new_appointment') {
       if ((notificationType === 'master' || notificationType === 'both') && masterChatId) {
         const { name, phone, car_make, service_type, services, total_price, message } = payload;
