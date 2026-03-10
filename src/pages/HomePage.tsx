@@ -193,6 +193,9 @@ export default function HomePage() {
       {/* PROMOTIONS (dynamic from DB) */}
       <PromotionsSection />
 
+      {/* REVIEWS (dynamic from DB) */}
+      <ReviewsSection />
+
       {/* FEATURES */}
       <section className="py-24">
         <div className="container mx-auto px-4">
