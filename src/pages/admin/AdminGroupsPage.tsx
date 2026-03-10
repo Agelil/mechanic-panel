@@ -85,9 +85,13 @@ export default function AdminGroupsPage() {
       supabase.from("user_groups").select("*").order("created_at"),
       supabase.from("user_group_members").select("id, user_id, group_id"),
     ]);
-    const groupsWithCount = (grps || []).map((g: UserGroup) => ({
-      ...g,
-      permissions: { ...DEFAULT_PERMISSIONS, ...g.permissions } as GroupPermissions,
+    const groupsWithCount = (grps || []).map((g: Record<string, unknown>) => ({
+      id: g.id as string,
+      name: g.name as string,
+      description: g.description as string | null,
+      telegram_chat_id: g.telegram_chat_id as string | null,
+      created_at: g.created_at as string,
+      permissions: { ...DEFAULT_PERMISSIONS, ...(g.permissions as object) } as GroupPermissions,
       member_count: (mems || []).filter((m: GroupMember) => m.group_id === g.id).length,
     }));
     setGroups(groupsWithCount);
