@@ -4,18 +4,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-// Public layout wrapper
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 
-// Pages
 import HomePage from "@/pages/HomePage";
 import ServicesPage from "@/pages/ServicesPage";
 import PortfolioPage from "@/pages/PortfolioPage";
 import BookingPage from "@/pages/BookingPage";
 import NotFound from "@/pages/NotFound";
 
-// Admin
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -25,6 +22,8 @@ import AdminAppointmentsPage from "@/pages/admin/AdminAppointmentsPage";
 import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
 import AdminPromotionsPage from "@/pages/admin/AdminPromotionsPage";
 import AdminClientsPage from "@/pages/admin/AdminClientsPage";
+import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
+import AdminUsersPage from "@/pages/admin/AdminUsersPage";
 
 const queryClient = new QueryClient();
 
@@ -58,10 +57,12 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="services" element={<AdminServicesPage />} />
+            <Route path="categories" element={<AdminCategoriesPage />} />
             <Route path="portfolio" element={<AdminPortfolioPage />} />
             <Route path="appointments" element={<AdminAppointmentsPage />} />
             <Route path="promotions" element={<AdminPromotionsPage />} />
             <Route path="clients" element={<AdminClientsPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
 
