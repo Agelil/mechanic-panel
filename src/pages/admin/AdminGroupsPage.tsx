@@ -107,7 +107,7 @@ export default function AdminGroupsPage() {
       name: group.name,
       description: group.description,
       telegram_chat_id: group.telegram_chat_id,
-      permissions: group.permissions,
+      permissions: group.permissions as unknown as Record<string, boolean>,
     }).eq("id", group.id);
 
     if (error) {
@@ -128,19 +128,28 @@ export default function AdminGroupsPage() {
   const createGroup = async () => {
     if (!newGroup.name.trim()) return;
     setCreating(true);
-    const { data, error } = await supabase.from("user_groups").insert({
+    const { data, error } = await supabase.from("user_groups").insert([{
       name: newGroup.name.trim(),
       description: newGroup.description.trim() || null,
       telegram_chat_id: newGroup.telegram_chat_id.trim() || null,
-      permissions: DEFAULT_PERMISSIONS,
-    }).select().single();
+      permissions: DEFAULT_PERMISSIONS as unknown as Record<string, boolean>,
+    }]).select().single();
 
     if (error) {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
-    } else {
-      setGroups((p) => [...p, { ...data, permissions: { ...DEFAULT_PERMISSIONS, ...data.permissions }, member_count: 0 }]);
+    } else if (data) {
+      const d = data as Record<string, unknown>;
+      setGroups((p) => [...p, {
+        id: d.id as string,
+        name: d.name as string,
+        description: d.description as string | null,
+        telegram_chat_id: d.telegram_chat_id as string | null,
+        created_at: d.created_at as string,
+        permissions: { ...DEFAULT_PERMISSIONS, ...(d.permissions as object) } as GroupPermissions,
+        member_count: 0,
+      }]);
       setNewGroup({ name: "", description: "", telegram_chat_id: "" });
-      setExpanded(data.id);
+      setExpanded(data.id as string);
       toast({ title: "Группа создана" });
     }
     setCreating(false);
