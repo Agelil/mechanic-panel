@@ -4,7 +4,7 @@ import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
   Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
-  ShieldCheck, ServerCog
+  ShieldCheck, ServerCog, GroupIcon, ShoppingCart, UsersRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -12,6 +12,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 const allNavItems = [
   { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, permission: "view_dashboard" },
   { href: "/admin/appointments", label: "Заявки", icon: ClipboardList, permission: "view_appointments" },
+  { href: "/admin/supply", label: "Снабжение", icon: ShoppingCart, permission: "view_appointments" },
   { href: "/admin/services", label: "Услуги", icon: Wrench, permission: "view_services" },
   { href: "/admin/categories", label: "Категории", icon: FolderOpen, permission: "view_categories" },
   { href: "/admin/portfolio", label: "Портфолио", icon: Images, permission: "view_portfolio" },
@@ -19,6 +20,7 @@ const allNavItems = [
   { href: "/admin/clients", label: "Клиенты", icon: Users, permission: "view_clients" },
   { href: "/admin/reviews", label: "Отзывы", icon: Star, permission: "view_promotions" },
   { href: "/admin/users", label: "Пользователи", icon: UserCog, permission: "view_users" },
+  { href: "/admin/groups", label: "Группы и права", icon: UsersRound, permission: "edit_settings" },
   { href: "/admin/access", label: "Доступ", icon: ShieldCheck, permission: "view_users" },
   { href: "/admin/settings", label: "Настройки", icon: Settings, permission: "view_settings" },
   { href: "/admin/system", label: "Система", icon: ServerCog, permission: "edit_settings" },

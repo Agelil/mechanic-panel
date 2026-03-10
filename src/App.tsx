@@ -29,6 +29,8 @@ import AdminUsersPage from "@/pages/admin/AdminUsersPage";
 import AdminReviewsPage from "@/pages/admin/AdminReviewsPage";
 import AdminAccessPage from "@/pages/admin/AdminAccessPage";
 import AdminSystemPage from "@/pages/admin/AdminSystemPage";
+import AdminGroupsPage from "@/pages/admin/AdminGroupsPage";
+import AdminSupplyPage from "@/pages/admin/AdminSupplyPage";
 import PendingApprovalPage from "@/components/PendingApprovalPage";
 
 const queryClient = new QueryClient();
