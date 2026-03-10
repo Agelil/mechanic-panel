@@ -51,7 +51,7 @@ export default function AdminAppointmentsPage() {
 
   const load = async () => {
     const { data } = await supabase.from("appointments").select("*").order("created_at", { ascending: false });
-    setAppointments((data as Appointment[]) || []);
+    setAppointments((data as unknown as Appointment[]) || []);
     setLoading(false);
   };
 
