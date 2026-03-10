@@ -14,7 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          car_make: string
+          created_at: string
+          id: string
+          message: string | null
+          name: string
+          phone: string
+          service_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          car_make: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          name: string
+          phone: string
+          service_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          car_make?: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          name?: string
+          phone?: string
+          service_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      portfolio: {
+        Row: {
+          car_make: string | null
+          car_model: string | null
+          car_year: number | null
+          created_at: string
+          description: string | null
+          id: string
+          image_after_url: string | null
+          image_before_url: string | null
+          is_published: boolean
+          service_type: string | null
+          title: string
+        }
+        Insert: {
+          car_make?: string | null
+          car_model?: string | null
+          car_year?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_after_url?: string | null
+          image_before_url?: string | null
+          is_published?: boolean
+          service_type?: string | null
+          title: string
+        }
+        Update: {
+          car_make?: string | null
+          car_model?: string | null
+          car_year?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_after_url?: string | null
+          image_before_url?: string | null
+          is_published?: boolean
+          service_type?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price_from: number
+          price_to: number | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price_from?: number
+          price_to?: number | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price_from?: number
+          price_to?: number | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
