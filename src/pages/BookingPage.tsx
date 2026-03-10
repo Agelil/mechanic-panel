@@ -407,17 +407,41 @@ export default function BookingPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-              >
-                {loading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</>
-                ) : (
-                  "Отправить заявку →"
-                )}
-              </button>
-              <p className="font-mono text-xs text-muted-foreground text-center mt-3">
-                Нажимая кнопку, вы соглашаетесь на обработку персональных данных
-              </p>
+              className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+              {loading ? (
+                <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</>
+              ) : (
+                "Отправить заявку →"
+              )}
+            </button>
+
+            {/* Consent checkbox (ФЗ-152) */}
+            <div className="mt-4">
+              <label className={`flex items-start gap-3 cursor-pointer ${errors.consent ? "text-destructive" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={(e) => {
+                    setConsentGiven(e.target.checked);
+                    if (errors.consent) setErrors((p) => { const er = { ...p }; delete er.consent; return er; });
+                  }}
+                  className="mt-1 w-4 h-4 accent-orange flex-shrink-0"
+                />
+                <span className="font-mono text-xs text-muted-foreground leading-relaxed">
+                  Я даю согласие на{" "}
+                  <a href="/privacy" target="_blank" className="text-orange hover:underline">
+                    обработку персональных данных
+                  </a>{" "}
+                  в соответствии с ФЗ-152 «О персональных данных». Данные защищены шифрованием AES-256.
+                </span>
+              </label>
+              {errors.consent && (
+                <p className="font-mono text-xs text-destructive mt-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />{errors.consent}
+                </p>
+              )}
+            </div>
             </div>
           </form>
         </div>
