@@ -17,35 +17,86 @@ export type Database = {
       appointments: {
         Row: {
           car_make: string
+          car_vin: string | null
+          client_notified: boolean
           created_at: string
           id: string
           message: string | null
           name: string
           phone: string
+          photos: Json | null
           service_type: string
+          services: Json | null
           status: string
+          total_price: number | null
           updated_at: string
         }
         Insert: {
           car_make: string
+          car_vin?: string | null
+          client_notified?: boolean
           created_at?: string
           id?: string
           message?: string | null
           name: string
           phone: string
+          photos?: Json | null
           service_type: string
+          services?: Json | null
           status?: string
+          total_price?: number | null
           updated_at?: string
         }
         Update: {
           car_make?: string
+          car_vin?: string | null
+          client_notified?: boolean
           created_at?: string
           id?: string
           message?: string | null
           name?: string
           phone?: string
+          photos?: Json | null
           service_type?: string
+          services?: Json | null
           status?: string
+          total_price?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      clients: {
+        Row: {
+          bonus_points: number
+          car_history: Json | null
+          created_at: string
+          id: string
+          name: string | null
+          phone: string
+          telegram_chat_id: string | null
+          telegram_username: string | null
+          updated_at: string
+        }
+        Insert: {
+          bonus_points?: number
+          car_history?: Json | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone: string
+          telegram_chat_id?: string | null
+          telegram_username?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bonus_points?: number
+          car_history?: Json | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone?: string
+          telegram_chat_id?: string | null
+          telegram_username?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -89,6 +140,39 @@ export type Database = {
           is_published?: boolean
           service_type?: string | null
           title?: string
+        }
+        Relationships: []
+      }
+      promotions: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_value: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_value?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_value?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -152,6 +236,39 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string | null
+        }
+        Relationships: []
+      }
+      telegram_users: {
+        Row: {
+          chat_id: string
+          created_at: string
+          first_name: string | null
+          id: string
+          is_active: boolean
+          last_name: string | null
+          phone: string | null
+          username: string | null
+        }
+        Insert: {
+          chat_id: string
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_name?: string | null
+          phone?: string | null
+          username?: string | null
+        }
+        Update: {
+          chat_id?: string
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_name?: string | null
+          phone?: string | null
+          username?: string | null
         }
         Relationships: []
       }
