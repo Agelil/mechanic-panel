@@ -43,6 +43,19 @@ export default function AdminClientsPage() {
       setTgUsers(t.data || []);
       setLoading(false);
     });
+
+    // Security audit log: record viewing of client data
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        supabase.from("security_audit_log").insert({
+          user_id: session.user.id,
+          user_email: session.user.email,
+          action: "view_clients",
+          target_table: "clients",
+          details: { page: "AdminClientsPage" },
+        });
+      }
+    });
   }, []);
 
   const handleBroadcast = async () => {
