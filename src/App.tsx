@@ -23,6 +23,8 @@ import AdminServicesPage from "@/pages/admin/AdminServicesPage";
 import AdminPortfolioPage from "@/pages/admin/AdminPortfolioPage";
 import AdminAppointmentsPage from "@/pages/admin/AdminAppointmentsPage";
 import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
+import AdminPromotionsPage from "@/pages/admin/AdminPromotionsPage";
+import AdminClientsPage from "@/pages/admin/AdminClientsPage";
 
 const queryClient = new QueryClient();
 
