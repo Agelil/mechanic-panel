@@ -23,6 +23,8 @@ import AdminServicesPage from "@/pages/admin/AdminServicesPage";
 import AdminPortfolioPage from "@/pages/admin/AdminPortfolioPage";
 import AdminAppointmentsPage from "@/pages/admin/AdminAppointmentsPage";
 import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
+import AdminPromotionsPage from "@/pages/admin/AdminPromotionsPage";
+import AdminClientsPage from "@/pages/admin/AdminClientsPage";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +60,8 @@ const App = () => (
             <Route path="services" element={<AdminServicesPage />} />
             <Route path="portfolio" element={<AdminPortfolioPage />} />
             <Route path="appointments" element={<AdminAppointmentsPage />} />
+            <Route path="promotions" element={<AdminPromotionsPage />} />
+            <Route path="clients" element={<AdminClientsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
 

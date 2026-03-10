@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Shield, Zap, Eye, CheckCircle2, Phone } from "lucide-react";
+import { ArrowRight, Shield, Zap, Eye, CheckCircle2, Phone, Tag, Percent } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const stats = [
   { value: "12+", label: "лет на рынке" },
@@ -26,40 +28,110 @@ const features = [
   },
 ];
 
+interface Promotion {
+  id: string;
+  title: string;
+  description: string | null;
+  discount_value: string | null;
+  image_url: string | null;
+  is_active: boolean;
+}
+
+function PromotionsSection() {
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("promotions")
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setPromotions(data || []);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading || promotions.length === 0) return null;
+
+  return (
+    <section className="py-20 bg-surface border-y-2 border-border">
+      <div className="container mx-auto px-4">
+        <div className="mb-10 flex items-end justify-between">
+          <div>
+            <span className="font-mono text-xs text-orange uppercase tracking-widest">// Актуальные предложения</span>
+            <h2 className="font-display text-5xl md:text-6xl tracking-wider mt-2">
+              АКЦИИ И <span className="text-orange">СКИДКИ</span>
+            </h2>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border">
+          {promotions.map((promo, i) => (
+            <div key={promo.id} className="bg-background hover:bg-surface transition-colors group relative overflow-hidden">
+              {promo.image_url && (
+                <img src={promo.image_url} alt={promo.title} className="w-full h-40 object-cover" />
+              )}
+              {!promo.image_url && (
+                <div className="w-full h-40 bg-orange/5 flex items-center justify-center border-b-2 border-border">
+                  <Percent className="w-16 h-16 text-orange/20" />
+                </div>
+              )}
+              {promo.discount_value && (
+                <div className="absolute top-3 right-3 bg-orange text-primary-foreground font-display text-xl tracking-wider px-3 py-1 shadow-brutal-sm">
+                  {promo.discount_value}
+                </div>
+              )}
+              <div className="p-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Tag className="w-3.5 h-3.5 text-orange" />
+                  <span className="font-mono text-xs text-orange uppercase tracking-wider">Акция</span>
+                </div>
+                <h3 className="font-display text-2xl tracking-wider mb-2">{promo.title}</h3>
+                {promo.description && (
+                  <p className="font-mono text-sm text-muted-foreground leading-relaxed">{promo.description}</p>
+                )}
+                <Link
+                  to="/booking"
+                  className="inline-flex items-center gap-2 mt-5 font-mono text-xs uppercase tracking-wider text-orange hover:underline"
+                >
+                  Записаться →
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
   return (
     <div className="min-h-screen">
       {/* HERO */}
       <section className="relative min-h-screen flex items-center bg-grid overflow-hidden pt-16">
-        {/* Orange accent bar */}
         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange" />
-
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-4xl">
-            {/* Label */}
             <div className="inline-flex items-center gap-2 bg-orange/10 border border-orange/30 px-3 py-1 mb-8">
               <span className="w-2 h-2 bg-orange rounded-full animate-pulse" />
               <span className="font-mono text-xs text-orange uppercase tracking-widest">
                 Автосервис · Санкт-Петербург
               </span>
             </div>
-
-            {/* Headline */}
             <h1 className="font-display text-[clamp(4rem,12vw,9rem)] leading-none tracking-wider mb-6">
               СЕРВИС
               <br />
               <span className="text-orange">ТОЧКА</span>
             </h1>
-
-            {/* Slogan */}
             <div className="flex items-center gap-4 mb-10">
               <div className="h-0.5 w-12 bg-orange" />
               <p className="font-mono text-lg md:text-xl text-muted-foreground tracking-wide">
                 Точка. И никаких вопросов.
               </p>
             </div>
-
-            {/* CTA */}
             <div className="flex flex-col sm:flex-row gap-4">
               <Link
                 to="/booking"
@@ -78,8 +150,6 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-
-        {/* Decorative */}
         <div className="absolute right-0 top-0 bottom-0 hidden lg:flex items-center pr-16">
           <div className="relative">
             <div className="w-64 h-64 border-2 border-orange/20 absolute -top-4 -left-4" />
@@ -119,6 +189,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* PROMOTIONS (dynamic from DB) */}
+      <PromotionsSection />
+
       {/* FEATURES */}
       <section className="py-24">
         <div className="container mx-auto px-4">
@@ -128,7 +201,6 @@ export default function HomePage() {
               НАШИ <span className="text-orange">ПРИНЦИПЫ</span>
             </h2>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border">
             {features.map((feat, i) => {
               const Icon = feat.icon;
@@ -155,16 +227,9 @@ export default function HomePage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
               {[
-                "Диагностика двигателя",
-                "Замена масла и фильтров",
-                "Ремонт тормозной системы",
-                "Замена подвески и ходовой",
-                "Кузовные работы",
-                "Компьютерная диагностика",
-                "Ремонт электрики",
-                "Шиномонтаж и балансировка",
-                "Замена ГРМ",
-                "Ремонт КПП",
+                "Диагностика двигателя", "Замена масла и фильтров", "Ремонт тормозной системы",
+                "Замена подвески и ходовой", "Кузовные работы", "Компьютерная диагностика",
+                "Ремонт электрики", "Шиномонтаж и балансировка", "Замена ГРМ", "Ремонт КПП",
               ].map((item) => (
                 <div key={item} className="flex items-center gap-3">
                   <CheckCircle2 className="w-4 h-4 text-orange flex-shrink-0" />
@@ -176,7 +241,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA BLOCK */}
+      {/* CTA */}
       <section className="py-24">
         <div className="container mx-auto px-4">
           <div className="relative bg-orange p-12 md:p-16 shadow-brutal-lg">
@@ -192,7 +257,7 @@ export default function HomePage() {
                 to="/booking"
                 className="inline-flex items-center gap-3 bg-primary-foreground text-primary px-8 py-4 font-display text-2xl tracking-widest hover:bg-primary-foreground/90 transition-colors shadow-brutal"
               >
-                Записаться → 
+                Записаться →
               </Link>
             </div>
           </div>

@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight
+  Settings, LogOut, Menu, X, ChevronRight, Tag, Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,8 @@ const navItems = [
   { href: "/admin/services", label: "Услуги", icon: Wrench },
   { href: "/admin/portfolio", label: "Портфолио", icon: Images },
   { href: "/admin/appointments", label: "Заявки", icon: ClipboardList },
+  { href: "/admin/promotions", label: "Акции", icon: Tag },
+  { href: "/admin/clients", label: "Клиенты", icon: Users },
   { href: "/admin/settings", label: "Настройки", icon: Settings },
 ];
 
