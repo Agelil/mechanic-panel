@@ -42,7 +42,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${window.location.origin}/admin` },
@@ -50,10 +50,29 @@ export default function AdminLoginPage() {
     if (error) {
       setError(error.message);
     } else {
+      // Create profile (pending approval)
+      if (data.user) {
+        await supabase.from("profiles").upsert({
+          user_id: data.user.id,
+          email: data.user.email,
+          is_approved: false,
+          is_blocked: false,
+        }, { onConflict: "user_id" });
+
+        // Notify admin via Telegram
+        try {
+          await supabase.functions.invoke("send-telegram-notification", {
+            body: {
+              type: "new_registration",
+              email: data.user.email,
+              user_id: data.user.id,
+            },
+          });
+        } catch { /* non-critical */ }
+      }
       setError("");
       setMode("login");
-      // Show success - display a temporary message
-      alert("Аккаунт создан! Проверьте email для подтверждения.");
+      alert("Аккаунт создан! После подтверждения email администратор откроет вам доступ.");
     }
     setLoading(false);
   };
