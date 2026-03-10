@@ -95,11 +95,17 @@ export default function BookingPage() {
 
     try {
       const serviceNames = selectedServices.map((s) => s.name).join(", ");
-      const { error } = await supabase.from("appointments").insert({
+      // Encrypt PII fields (ФЗ-152)
+      const encrypted = encryptPII({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        car_make: form.car_make.trim(),
         car_vin: form.car_vin.trim() || null,
+      });
+      const { error } = await supabase.from("appointments").insert({
+        name: encrypted.name,
+        phone: encrypted.phone,
+        car_make: form.car_make.trim(),
+        car_vin: encrypted.car_vin,
         service_type: serviceNames,
         services: selectedServices.map((s) => ({ id: s.id, name: s.name, price_from: s.price_from, price_to: s.price_to })),
         total_price: totalMin,
