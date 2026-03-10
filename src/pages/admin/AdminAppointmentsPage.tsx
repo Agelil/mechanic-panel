@@ -169,7 +169,7 @@ export default function AdminAppointmentsPage() {
                         <Icon className="w-3 h-3" />{cfg.label}
                       </span>
                       {appt.client_notified && (
-                        <span className="inline-flex items-center gap-1 font-mono text-xs text-green-400 border border-green-400/30 px-2 py-1">
+                        <span className="inline-flex items-center gap-1 font-mono text-xs border px-2 py-1" style={{color: 'hsl(142 76% 60%)', borderColor: 'hsl(142 76% 60% / 0.3)'}}>
                           <Bell className="w-3 h-3" />Клиент оповещён
                         </span>
                       )}
