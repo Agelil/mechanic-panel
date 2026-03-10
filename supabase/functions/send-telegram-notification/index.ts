@@ -69,21 +69,62 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // TYPE: new_appointment — notify master
+    // TYPE: supply_order — notify groups with notify_supply_orders permission
+    if (type === 'supply_order') {
+      const { master_name, supply_type, item_name, quantity, unit, urgency, appointment_id } = payload;
+      const supplyTypeLabels: Record<string, string> = { part: '🔩 Запчасть', tool: '🔧 Инструмент', consumable: '🧴 Расходники' };
+      const urgencyLabel = urgency === 'urgent' ? '🚨 СРОЧНО' : '📋 Планово';
+      const now = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+
+      // Get appointment license plate if linked
+      let licenseInfo = '';
+      if (appointment_id) {
+        const { data: appt } = await db.from('appointments').select('license_plate, car_make').eq('id', appointment_id).maybeSingle();
+        if (appt) licenseInfo = `\n🚗 <b>Авто:</b> ${appt.car_make}${appt.license_plate ? ` (${appt.license_plate})` : ''}`;
+      }
+
+      const text = `🛠 <b>ЗАЯВКА НА СНАБЖЕНИЕ — Сервис-Точка</b>\n\n👤 <b>Мастер:</b> ${master_name}\n📦 <b>Тип:</b> ${supplyTypeLabels[supply_type] || supply_type}\n📝 <b>Наименование:</b> ${item_name}\n🔢 <b>Количество:</b> ${quantity} ${unit}\n⚡ <b>Срочность:</b> ${urgencyLabel}${licenseInfo}\n\n🕐 <i>${now} МСК</i>`;
+
+      // Notify masterChatId (admin)
+      if (masterChatId) await sendTelegramMessage(botToken, masterChatId, text);
+
+      // Also notify groups with notify_supply_orders = true
+      const { data: supplyGroups } = await db.from('user_groups').select('telegram_chat_id, permissions');
+      for (const group of (supplyGroups || [])) {
+        const perms = group.permissions as Record<string, boolean>;
+        if (perms?.notify_supply_orders && group.telegram_chat_id && group.telegram_chat_id !== masterChatId) {
+          await sendTelegramMessage(botToken, group.telegram_chat_id, text);
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // TYPE: new_appointment — notify master + groups with notify_new_appointments permission
     if (type === 'new_appointment') {
       if ((notificationType === 'master' || notificationType === 'both') && masterChatId) {
         const { name, phone, car_make, service_type, services, total_price, message } = payload;
         const now = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
-        
         let servicesText = '';
         if (services && Array.isArray(services) && services.length > 0) {
           servicesText = '\n📋 <b>Услуги:</b>\n' + services.map((s: { name: string; price_from: number }) => `  • ${s.name} — от ${s.price_from.toLocaleString('ru-RU')} руб.`).join('\n');
         } else if (service_type) {
           servicesText = `\n🔧 <b>Услуга:</b> ${service_type}`;
         }
-
         const text = `🔔 <b>НОВАЯ ЗАЯВКА — Сервис-Точка</b>\n\n👤 <b>Клиент:</b> ${name}\n📞 <b>Телефон:</b> ${phone}\n🚗 <b>Автомобиль:</b> ${car_make}${servicesText}${total_price ? `\n💰 <b>Предв. стоимость:</b> от ${total_price.toLocaleString('ru-RU')} руб.` : ''}${message ? `\n💬 <b>Комментарий:</b> ${message}` : ''}\n\n🕐 <i>${now} МСК</i>`;
         await sendTelegramMessage(botToken, masterChatId, text);
+
+        // Also notify groups with notify_new_appointments = true
+        const { data: apptGroups } = await db.from('user_groups').select('telegram_chat_id, permissions');
+        for (const group of (apptGroups || [])) {
+          const perms = group.permissions as Record<string, boolean>;
+          if (perms?.notify_new_appointments && group.telegram_chat_id && group.telegram_chat_id !== masterChatId) {
+            // Only include price if group has view_prices permission
+            const priceText = perms?.view_prices && total_price ? `\n💰 от ${total_price.toLocaleString('ru-RU')} руб.` : '';
+            const groupText = `🔔 <b>НОВАЯ ЗАЯВКА</b>\n\n🚗 ${car_make}${servicesText}${priceText}\n🕐 <i>${now} МСК</i>`;
+            await sendTelegramMessage(botToken, group.telegram_chat_id, groupText);
+          }
+        }
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }

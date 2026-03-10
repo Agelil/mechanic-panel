@@ -193,31 +193,37 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          display_name: string | null
           email: string | null
           full_name: string | null
           id: string
           is_approved: boolean
           is_blocked: boolean
+          telegram_chat_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          display_name?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
           is_approved?: boolean
           is_blocked?: boolean
+          telegram_chat_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          display_name?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
           is_approved?: boolean
           is_blocked?: boolean
+          telegram_chat_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -525,6 +531,65 @@ export type Database = {
           },
         ]
       }
+      supply_orders: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          id: string
+          item_name: string
+          master_id: string | null
+          master_name: string
+          notes: string | null
+          notified: boolean
+          quantity: number
+          status: Database["public"]["Enums"]["supply_status"]
+          supply_type: Database["public"]["Enums"]["supply_type"]
+          unit: string | null
+          updated_at: string
+          urgency: Database["public"]["Enums"]["supply_urgency"]
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          item_name: string
+          master_id?: string | null
+          master_name: string
+          notes?: string | null
+          notified?: boolean
+          quantity?: number
+          status?: Database["public"]["Enums"]["supply_status"]
+          supply_type?: Database["public"]["Enums"]["supply_type"]
+          unit?: string | null
+          updated_at?: string
+          urgency?: Database["public"]["Enums"]["supply_urgency"]
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          item_name?: string
+          master_id?: string | null
+          master_name?: string
+          notes?: string | null
+          notified?: boolean
+          quantity?: number
+          status?: Database["public"]["Enums"]["supply_status"]
+          supply_type?: Database["public"]["Enums"]["supply_type"]
+          unit?: string | null
+          updated_at?: string
+          urgency?: Database["public"]["Enums"]["supply_urgency"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supply_orders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       telegram_sessions: {
         Row: {
           auth_date: number
@@ -603,6 +668,65 @@ export type Database = {
         }
         Relationships: []
       }
+      user_group_members: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          permissions: Json
+          telegram_chat_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          permissions?: Json
+          telegram_chat_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          permissions?: Json
+          telegram_chat_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -645,6 +769,14 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "master" | "manager"
+      supply_status:
+        | "pending"
+        | "approved"
+        | "ordered"
+        | "received"
+        | "cancelled"
+      supply_type: "part" | "tool" | "consumable"
+      supply_urgency: "urgent" | "planned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -773,6 +905,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "master", "manager"],
+      supply_status: [
+        "pending",
+        "approved",
+        "ordered",
+        "received",
+        "cancelled",
+      ],
+      supply_type: ["part", "tool", "consumable"],
+      supply_urgency: ["urgent", "planned"],
     },
   },
 } as const
