@@ -4,7 +4,7 @@ import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
   Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
-  ShieldCheck, ServerCog, GroupIcon, ShoppingCart, UsersRound
+  ShieldCheck, ServerCog, ShoppingCart, UsersRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
