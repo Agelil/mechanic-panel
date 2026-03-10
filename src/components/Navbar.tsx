@@ -8,6 +8,7 @@ const navItems = [
   { href: "/services", label: "Услуги" },
   { href: "/portfolio", label: "Наши работы" },
   { href: "/booking", label: "Записаться" },
+  { href: "/cabinet", label: "Кабинет" },
 ];
 
 export function Navbar() {

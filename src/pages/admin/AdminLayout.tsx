@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog
+  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -16,6 +16,7 @@ const allNavItems = [
   { href: "/admin/portfolio", label: "Портфолио", icon: Images, permission: "view_portfolio" },
   { href: "/admin/promotions", label: "Акции", icon: Tag, permission: "view_promotions" },
   { href: "/admin/clients", label: "Клиенты", icon: Users, permission: "view_clients" },
+  { href: "/admin/reviews", label: "Отзывы", icon: Star, permission: "view_promotions" },
   { href: "/admin/users", label: "Пользователи", icon: UserCog, permission: "view_users" },
   { href: "/admin/settings", label: "Настройки", icon: Settings, permission: "view_settings" },
 ];

@@ -14,14 +14,55 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_documents: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          created_by: string | null
+          doc_type: string
+          file_name: string
+          file_url: string
+          id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          doc_type: string
+          file_name: string
+          file_url: string
+          id?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          doc_type?: string
+          file_name?: string
+          file_url?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_documents_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
+          acceptance_photos: Json | null
           car_make: string
           car_vin: string | null
           client_notified: boolean
           created_at: string
           id: string
+          license_plate: string | null
           message: string | null
+          mileage: number | null
           name: string
           phone: string
           photos: Json | null
@@ -32,12 +73,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          acceptance_photos?: Json | null
           car_make: string
           car_vin?: string | null
           client_notified?: boolean
           created_at?: string
           id?: string
+          license_plate?: string | null
           message?: string | null
+          mileage?: number | null
           name: string
           phone: string
           photos?: Json | null
@@ -48,12 +92,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          acceptance_photos?: Json | null
           car_make?: string
           car_vin?: string | null
           client_notified?: boolean
           created_at?: string
           id?: string
+          license_plate?: string | null
           message?: string | null
+          mileage?: number | null
           name?: string
           phone?: string
           photos?: Json | null
@@ -175,6 +222,88 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      review_requests: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          id: string
+          scheduled_for: string
+          sent: boolean
+          sent_at: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          scheduled_for: string
+          sent?: boolean
+          sent_at?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          scheduled_for?: string
+          sent?: boolean
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_requests_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          appointment_id: string | null
+          client_name: string | null
+          created_at: string
+          feedback: string | null
+          id: string
+          is_published: boolean
+          phone: string | null
+          rating: number
+          review_requested_at: string | null
+          telegram_chat_id: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          is_published?: boolean
+          phone?: string | null
+          rating: number
+          review_requested_at?: string | null
+          telegram_chat_id?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          client_name?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          is_published?: boolean
+          phone?: string | null
+          rating?: number
+          review_requested_at?: string | null
+          telegram_chat_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_permissions: {
         Row: {
@@ -326,6 +455,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      telegram_sessions: {
+        Row: {
+          auth_date: number
+          created_at: string
+          first_name: string | null
+          hash: string
+          id: string
+          last_active: string
+          last_name: string | null
+          phone: string | null
+          photo_url: string | null
+          session_token: string
+          telegram_id: number
+          username: string | null
+        }
+        Insert: {
+          auth_date: number
+          created_at?: string
+          first_name?: string | null
+          hash: string
+          id?: string
+          last_active?: string
+          last_name?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          session_token?: string
+          telegram_id: number
+          username?: string | null
+        }
+        Update: {
+          auth_date?: number
+          created_at?: string
+          first_name?: string | null
+          hash?: string
+          id?: string
+          last_active?: string
+          last_name?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          session_token?: string
+          telegram_id?: number
+          username?: string | null
+        }
+        Relationships: []
       }
       telegram_users: {
         Row: {
