@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star
+  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
+  ShieldCheck, ServerCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -18,7 +19,9 @@ const allNavItems = [
   { href: "/admin/clients", label: "Клиенты", icon: Users, permission: "view_clients" },
   { href: "/admin/reviews", label: "Отзывы", icon: Star, permission: "view_promotions" },
   { href: "/admin/users", label: "Пользователи", icon: UserCog, permission: "view_users" },
+  { href: "/admin/access", label: "Доступ", icon: ShieldCheck, permission: "view_users" },
   { href: "/admin/settings", label: "Настройки", icon: Settings, permission: "view_settings" },
+  { href: "/admin/system", label: "Система", icon: ServerCog, permission: "edit_settings" },
 ];
 
 export default function AdminLayout() {
