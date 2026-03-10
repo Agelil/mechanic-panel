@@ -55,6 +55,7 @@ const App = () => (
           <Route path="/portfolio" element={<PublicLayout><PortfolioPage /></PublicLayout>} />
           <Route path="/booking" element={<PublicLayout><BookingPage /></PublicLayout>} />
           <Route path="/cabinet" element={<PublicLayout><CabinetPage /></PublicLayout>} />
+          <Route path="/privacy" element={<PublicLayout><PrivacyPage /></PublicLayout>} />
 
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/pending" element={<PendingApprovalPage />} />
