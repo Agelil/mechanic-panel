@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog
+  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
