@@ -118,7 +118,7 @@ export default function AdminClientsPage() {
                       <div className="flex flex-wrap gap-4 mt-1">
                         <span className="flex items-center gap-1 font-mono text-sm">
                           <Phone className="w-3 h-3 text-orange" />
-                          <a href={`tel:${client.phone}`} className="hover:text-orange transition-colors">{client.phone}</a>
+                          <a href={`tel:${decrypt(client.phone)}`} className="hover:text-orange transition-colors">{decrypt(client.phone)}</a>
                         </span>
                         {client.telegram_username && (
                           <span className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
