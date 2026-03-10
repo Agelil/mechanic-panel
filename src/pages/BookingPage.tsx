@@ -1,34 +1,46 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2, Phone, User, Car, Wrench, MessageSquare } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatPrice } from "@/lib/utils";
 
-const SERVICE_OPTIONS = [
-  "Компьютерная диагностика",
-  "Замена масла и фильтра",
-  "Ремонт тормозной системы",
-  "Замена ремня/цепи ГРМ",
-  "Ремонт подвески и ходовой",
-  "Шиномонтаж и балансировка",
-  "Ремонт электрики",
-  "Кузовные и сварочные работы",
-  "Замена охлаждающей жидкости",
-  "Ремонт КПП",
-  "Другое",
-];
+interface ServiceOption {
+  id: string;
+  name: string;
+  price_from: number;
+  price_to: number | null;
+  category: string | null;
+}
 
 export default function BookingPage() {
   const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    car_make: "",
-    service_type: "",
-    message: "",
-  });
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
+  const [form, setForm] = useState({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    supabase
+      .from("services")
+      .select("id, name, price_from, price_to, category")
+      .eq("is_active", true)
+      .order("sort_order")
+      .then(({ data }) => setServices(data || []));
+  }, []);
+
+  const totalMin = selectedServices.reduce((sum, s) => sum + s.price_from, 0);
+  const totalMax = selectedServices.reduce((sum, s) => sum + (s.price_to || s.price_from), 0);
+
+  const toggleService = (svc: ServiceOption) => {
+    setSelectedServices((prev) =>
+      prev.find((s) => s.id === svc.id)
+        ? prev.filter((s) => s.id !== svc.id)
+        : [...prev, svc]
+    );
+    if (errors.services) setErrors((p) => { const e = { ...p }; delete e.services; return e; });
+  };
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -36,7 +48,7 @@ export default function BookingPage() {
     if (!form.phone.trim()) errs.phone = "Введите номер телефона";
     else if (!/^[\+\d\s\-\(\)]{7,20}$/.test(form.phone)) errs.phone = "Некорректный номер";
     if (!form.car_make.trim()) errs.car_make = "Укажите марку автомобиля";
-    if (!form.service_type) errs.service_type = "Выберите вид услуги";
+    if (selectedServices.length === 0) errs.services = "Выберите хотя бы одну услугу";
     return errs;
   };
 
@@ -48,48 +60,50 @@ export default function BookingPage() {
     setLoading(true);
 
     try {
+      const serviceNames = selectedServices.map((s) => s.name).join(", ");
       const { error } = await supabase.from("appointments").insert({
         name: form.name.trim(),
         phone: form.phone.trim(),
         car_make: form.car_make.trim(),
-        service_type: form.service_type,
+        car_vin: form.car_vin.trim() || null,
+        service_type: serviceNames,
+        services: selectedServices.map((s) => ({ id: s.id, name: s.name, price_from: s.price_from, price_to: s.price_to })),
+        total_price: totalMin,
         message: form.message.trim() || null,
         status: "new",
       });
-
       if (error) throw error;
 
-      // Send Telegram notification via edge function
       try {
         await supabase.functions.invoke("send-telegram-notification", {
           body: {
+            type: "new_appointment",
             name: form.name.trim(),
             phone: form.phone.trim(),
             car_make: form.car_make.trim(),
-            service_type: form.service_type,
+            service_type: serviceNames,
+            services: selectedServices,
+            total_price: totalMin,
             message: form.message.trim(),
           },
         });
-      } catch {
-        // Telegram notification failure is non-critical
-      }
+      } catch { /* non-critical */ }
 
       setSubmitted(true);
-    } catch (err) {
-      toast({
-        title: "Ошибка",
-        description: "Не удалось отправить заявку. Попробуйте ещё раз или позвоните нам.",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Ошибка", description: "Не удалось отправить заявку. Попробуйте ещё раз.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
   const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors((prev) => { const e = { ...prev }; delete e[field]; return e; });
+    setForm((p) => ({ ...p, [field]: value }));
+    if (errors[field]) setErrors((p) => { const e = { ...p }; delete e[field]; return e; });
   };
+
+  // Group by category
+  const categories = Array.from(new Set(services.map((s) => s.category || "Прочее")));
 
   if (submitted) {
     return (
@@ -99,14 +113,27 @@ export default function BookingPage() {
             <CheckCircle2 className="w-10 h-10 text-orange" />
           </div>
           <h2 className="font-display text-5xl tracking-wider mb-4">ЗАЯВКА ПРИНЯТА</h2>
-          <p className="font-mono text-muted-foreground mb-2">
-            Спасибо, <span className="text-foreground font-bold">{form.name}</span>!
-          </p>
+          <p className="font-mono text-muted-foreground mb-2">Спасибо, <span className="text-foreground font-bold">{form.name}</span>!</p>
           <p className="font-mono text-sm text-muted-foreground mb-8">
-            Мы перезвоним вам в течение 15 минут на номер <span className="text-foreground">{form.phone}</span>.
+            Мы перезвоним в течение 15 минут на номер <span className="text-foreground">{form.phone}</span>.
           </p>
+          {selectedServices.length > 0 && (
+            <div className="bg-surface border-2 border-border p-5 mb-6 text-left max-w-sm mx-auto">
+              <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-3">Выбранные услуги</p>
+              {selectedServices.map((s) => (
+                <div key={s.id} className="flex justify-between font-mono text-sm py-1 border-b border-border last:border-0">
+                  <span>{s.name}</span>
+                  <span className="text-orange">от {formatPrice(s.price_from)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between font-display text-xl mt-3 pt-2 text-orange">
+                <span>ИТОГО</span>
+                <span>от {formatPrice(totalMin)}</span>
+              </div>
+            </div>
+          )}
           <button
-            onClick={() => { setSubmitted(false); setForm({ name: "", phone: "", car_make: "", service_type: "", message: "" }); }}
+            onClick={() => { setSubmitted(false); setForm({ name: "", phone: "", car_make: "", car_vin: "", message: "" }); setSelectedServices([]); }}
             className="font-mono text-sm text-orange border border-orange px-6 py-3 hover:bg-orange hover:text-primary-foreground transition-colors"
           >
             Оставить ещё одну заявку
@@ -118,7 +145,6 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen pt-16">
-      {/* Header */}
       <section className="relative bg-surface border-b-2 border-border py-16 bg-grid">
         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange" />
         <div className="container mx-auto px-4">
@@ -127,126 +153,136 @@ export default function BookingPage() {
             ЗАПИСАТЬСЯ <span className="text-orange">НА СЕРВИС</span>
           </h1>
           <p className="font-mono text-sm text-muted-foreground mt-4 max-w-xl">
-            Заполните форму — мы перезвоним в течение 15 минут и согласуем удобное время.
+            Выберите услуги и заполните форму — мы перезвоним в течение 15 минут.
           </p>
         </div>
       </section>
 
       <section className="py-16">
         <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Name */}
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* Left column: contact info */}
+            <div className="space-y-5">
+              <h2 className="font-display text-3xl tracking-wider mb-6">КОНТАКТНЫЕ ДАННЫЕ</h2>
+
               <div>
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                  <User className="w-3.5 h-3.5 text-orange" />
-                  Ваше имя *
+                  <User className="w-3.5 h-3.5 text-orange" /> Ваше имя *
                 </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => handleChange("name", e.target.value)}
+                <input type="text" value={form.name} onChange={(e) => handleChange("name", e.target.value)}
                   placeholder="Иван Иванов"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${
-                    errors.name ? "border-destructive" : "border-border"
-                  }`}
-                />
+                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.name ? "border-destructive" : "border-border"}`} />
                 {errors.name && <p className="font-mono text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
-              {/* Phone */}
               <div>
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                  <Phone className="w-3.5 h-3.5 text-orange" />
-                  Телефон *
+                  <Phone className="w-3.5 h-3.5 text-orange" /> Телефон *
                 </label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => handleChange("phone", e.target.value)}
+                <input type="tel" value={form.phone} onChange={(e) => handleChange("phone", e.target.value)}
                   placeholder="+7 (812) 000-00-00"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${
-                    errors.phone ? "border-destructive" : "border-border"
-                  }`}
-                />
+                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.phone ? "border-destructive" : "border-border"}`} />
                 {errors.phone && <p className="font-mono text-xs text-destructive mt-1">{errors.phone}</p>}
               </div>
 
-              {/* Car Make */}
               <div>
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                  <Car className="w-3.5 h-3.5 text-orange" />
-                  Марка и модель автомобиля *
+                  <Car className="w-3.5 h-3.5 text-orange" /> Марка и модель *
                 </label>
-                <input
-                  type="text"
-                  value={form.car_make}
-                  onChange={(e) => handleChange("car_make", e.target.value)}
+                <input type="text" value={form.car_make} onChange={(e) => handleChange("car_make", e.target.value)}
                   placeholder="Toyota Camry 2020"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${
-                    errors.car_make ? "border-destructive" : "border-border"
-                  }`}
-                />
+                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`} />
                 {errors.car_make && <p className="font-mono text-xs text-destructive mt-1">{errors.car_make}</p>}
               </div>
 
-              {/* Service */}
               <div>
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                  <Wrench className="w-3.5 h-3.5 text-orange" />
-                  Вид услуги *
+                  <Car className="w-3.5 h-3.5 text-muted-foreground" /> VIN номер (необязательно)
                 </label>
-                <select
-                  value={form.service_type}
-                  onChange={(e) => handleChange("service_type", e.target.value)}
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${
-                    errors.service_type ? "border-destructive" : "border-border"
-                  } ${!form.service_type ? "text-muted-foreground" : ""}`}
-                >
-                  <option value="">Выберите услугу...</option>
-                  {SERVICE_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-                {errors.service_type && <p className="font-mono text-xs text-destructive mt-1">{errors.service_type}</p>}
+                <input type="text" value={form.car_vin} onChange={(e) => handleChange("car_vin", e.target.value)}
+                  placeholder="WAUZZZ8K9BA012345" maxLength={17}
+                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase" />
               </div>
 
-              {/* Message */}
               <div>
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
-                  <MessageSquare className="w-3.5 h-3.5 text-orange" />
-                  Комментарий (необязательно)
+                  <MessageSquare className="w-3.5 h-3.5 text-orange" /> Комментарий
                 </label>
-                <textarea
-                  value={form.message}
-                  onChange={(e) => handleChange("message", e.target.value)}
-                  placeholder="Опишите проблему или укажите удобное время..."
-                  rows={4}
-                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors resize-none"
-                />
+                <textarea value={form.message} onChange={(e) => handleChange("message", e.target.value)}
+                  placeholder="Опишите проблему или укажите удобное время..." rows={4}
+                  className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors resize-none" />
+              </div>
+            </div>
+
+            {/* Right column: services */}
+            <div>
+              <h2 className="font-display text-3xl tracking-wider mb-6">ВЫБЕРИТЕ УСЛУГИ</h2>
+              {errors.services && <p className="font-mono text-xs text-destructive mb-3 border border-destructive/20 bg-destructive/10 px-3 py-2">{errors.services}</p>}
+
+              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+                {categories.map((cat) => (
+                  <div key={cat}>
+                    <p className="font-mono text-xs text-orange uppercase tracking-widest mb-2 border-b border-border pb-1">{cat}</p>
+                    <div className="space-y-1">
+                      {services.filter((s) => (s.category || "Прочее") === cat).map((svc) => {
+                        const checked = !!selectedServices.find((s) => s.id === svc.id);
+                        return (
+                          <label key={svc.id} className={`flex items-start gap-3 p-3 cursor-pointer transition-colors border-2 ${checked ? "border-orange bg-orange/5" : "border-transparent hover:bg-surface"}`}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleService(svc)}
+                              className="mt-0.5 accent-orange w-4 h-4 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-mono text-sm block">{svc.name}</span>
+                              <span className="font-mono text-xs text-orange">
+                                от {formatPrice(svc.price_from)}{svc.price_to ? ` до ${formatPrice(svc.price_to)}` : ""}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Отправляем...
-                  </>
-                ) : (
-                  "Отправить заявку →"
-                )}
+              {/* Price summary */}
+              {selectedServices.length > 0 && (
+                <div className="mt-5 bg-orange/10 border-2 border-orange/30 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="w-4 h-4 text-orange" />
+                    <span className="font-mono text-xs text-orange uppercase tracking-widest">Предварительный расчёт</span>
+                  </div>
+                  <div className="space-y-1 mb-3">
+                    {selectedServices.map((s) => (
+                      <div key={s.id} className="flex justify-between font-mono text-xs">
+                        <span className="text-muted-foreground truncate mr-2">{s.name}</span>
+                        <span>от {formatPrice(s.price_from)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-orange/30 pt-2 flex justify-between">
+                    <span className="font-display text-lg tracking-wider">ИТОГО</span>
+                    <span className="font-display text-lg text-orange">
+                      от {formatPrice(totalMin)}{totalMax > totalMin ? ` до ${formatPrice(totalMax)}` : ""}
+                    </span>
+                  </div>
+                  <p className="font-mono text-xs text-muted-foreground mt-2">
+                    * Финальная стоимость определяется после диагностики
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Submit */}
+            <div className="lg:col-span-2">
+              <button type="submit" disabled={loading}
+                className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3">
+                {loading ? <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</> : "Отправить заявку →"}
               </button>
-
-              <p className="font-mono text-xs text-muted-foreground text-center">
+              <p className="font-mono text-xs text-muted-foreground text-center mt-3">
                 Нажимая кнопку, вы соглашаетесь на обработку персональных данных
               </p>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
       </section>
     </div>
