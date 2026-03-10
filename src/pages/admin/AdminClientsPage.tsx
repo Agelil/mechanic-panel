@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Users, Phone, Car, Star, MessageSquare, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { decrypt } from "@/lib/encryption";
 
 interface Client {
   id: string;
