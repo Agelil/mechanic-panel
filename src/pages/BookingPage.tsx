@@ -82,6 +82,7 @@ export default function BookingPage() {
     else if (!/^[\+\d\s\-\(\)]{7,20}$/.test(form.phone)) errs.phone = "Некорректный номер";
     if (!form.car_make.trim()) errs.car_make = "Укажите марку автомобиля";
     if (selectedServices.length === 0) errs.services = "Выберите хотя бы одну услугу";
+    if (!consentGiven) errs.consent = "Необходимо согласие на обработку персональных данных";
     return errs;
   };
 
