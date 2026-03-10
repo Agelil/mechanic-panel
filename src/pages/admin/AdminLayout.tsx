@@ -33,14 +33,31 @@ export default function AdminLayout() {
   const { role, loading: roleLoading, hasPermission } = useUserRole();
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) navigate("/admin/login");
-      else setUserEmail(session.user.email || "");
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!session) { navigate("/admin/login"); setAuthLoading(false); return; }
+      setUserEmail(session.user.email || "");
+      // Check approval
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_approved, is_blocked")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (profile && (!profile.is_approved || profile.is_blocked)) {
+        navigate("/admin/pending");
+      }
       setAuthLoading(false);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) navigate("/admin/login");
-      else setUserEmail(session?.user?.email || "");
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { navigate("/admin/login"); setAuthLoading(false); return; }
+      setUserEmail(session?.user?.email || "");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_approved, is_blocked")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (profile && (!profile.is_approved || profile.is_blocked)) {
+        navigate("/admin/pending");
+      }
       setAuthLoading(false);
     });
   }, [navigate]);
