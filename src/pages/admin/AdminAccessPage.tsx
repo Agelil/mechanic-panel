@@ -48,8 +48,6 @@ export default function AdminAccessPage() {
     } else {
       setProfiles((p) => p.map((pr) => pr.user_id === userId ? { ...pr, is_approved: true, is_blocked: false } : pr));
       toast({ title: "Одобрено", description: "Пользователь получил доступ к системе." });
-
-      // Audit log
       const { data: { session } } = await supabase.auth.getSession();
       await supabase.from("security_audit_log").insert({
         user_id: session?.user?.id,
@@ -75,8 +73,6 @@ export default function AdminAccessPage() {
     } else {
       setProfiles((p) => p.map((pr) => pr.user_id === userId ? { ...pr, is_approved: false, is_blocked: true } : pr));
       toast({ title: "Заблокировано", description: "Пользователю закрыт доступ.", variant: "destructive" });
-
-      // Audit log
       const { data: { session } } = await supabase.auth.getSession();
       await supabase.from("security_audit_log").insert({
         user_id: session?.user?.id,
@@ -121,6 +117,13 @@ export default function AdminAccessPage() {
     );
   }
 
+  const STAT_ITEMS = [
+    { key: "pending" as const, label: "Ожидают", icon: Clock, activeClass: "text-orange border-orange" },
+    { key: "approved" as const, label: "Одобрены", icon: CheckCircle2, activeClass: "text-green-400 border-green-400" },
+    { key: "blocked" as const, label: "Заблокированы", icon: XCircle, activeClass: "text-destructive border-destructive" },
+    { key: "all" as const, label: "Всего", icon: UserCheck, activeClass: "text-muted-foreground border-muted-foreground" },
+  ];
+
   return (
     <div>
       <div className="mb-8">
@@ -130,19 +133,14 @@ export default function AdminAccessPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border mb-6">
-        {([
-          { key: "pending", label: "Ожидают", icon: Clock, color: "text-orange" },
-          { key: "approved", label: "Одобрены", icon: CheckCircle2, color: "text-green-400" },
-          { key: "blocked", label: "Заблокированы", icon: XCircle, color: "text-destructive" },
-          { key: "all", label: "Всего", icon: UserCheck, color: "text-muted-foreground" },
-        ] as const).map(({ key, label, icon: Icon, color }) => (
+        {STAT_ITEMS.map(({ key, label, icon: Icon, activeClass }) => (
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`bg-surface p-4 text-left transition-colors hover:bg-surface/80 ${filter === key ? "ring-1 ring-orange" : ""}`}
+            className={`bg-surface p-4 text-left transition-colors hover:bg-surface/80 ${filter === key ? `border-2 ${activeClass}` : "border-2 border-transparent"}`}
           >
-            <Icon className={`w-5 h-5 ${color} mb-2`} />
-            <div className={`font-display text-3xl ${color}`}>{counts[key]}</div>
+            <Icon className={`w-5 h-5 mb-2 ${filter === key ? activeClass.split(" ")[0] : "text-muted-foreground"}`} />
+            <div className={`font-display text-3xl ${filter === key ? activeClass.split(" ")[0] : "text-foreground"}`}>{counts[key]}</div>
             <div className="font-mono text-xs text-muted-foreground">{label}</div>
           </button>
         ))}
@@ -179,13 +177,12 @@ export default function AdminAccessPage() {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  {/* Status badge */}
                   {profile.is_blocked ? (
                     <span className="font-mono text-xs border px-2 py-0.5 text-destructive border-destructive/30 bg-destructive/10">
                       ЗАБЛОКИРОВАН
                     </span>
                   ) : profile.is_approved ? (
-                    <span className="font-mono text-xs border px-2 py-0.5 text-green-400 border-green-400/30 bg-green-400/10">
+                    <span className="font-mono text-xs border px-2 py-0.5 border-border text-muted-foreground">
                       ОДОБРЕН
                     </span>
                   ) : (
@@ -208,7 +205,8 @@ export default function AdminAccessPage() {
                   <button
                     onClick={() => approve(profile.user_id)}
                     disabled={processing === profile.user_id}
-                    className="flex items-center gap-1.5 font-mono text-xs border-2 border-green-400/40 text-green-400 px-3 py-2 hover:bg-green-400/10 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 font-mono text-xs border-2 border-border text-muted-foreground px-3 py-2 hover:border-border hover:text-foreground transition-colors disabled:opacity-50"
+                    style={{ borderColor: "hsl(var(--border))" }}
                   >
                     {processing === profile.user_id ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
