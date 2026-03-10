@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star
+  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
+  ShieldCheck, ServerCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -18,7 +19,9 @@ const allNavItems = [
   { href: "/admin/clients", label: "Клиенты", icon: Users, permission: "view_clients" },
   { href: "/admin/reviews", label: "Отзывы", icon: Star, permission: "view_promotions" },
   { href: "/admin/users", label: "Пользователи", icon: UserCog, permission: "view_users" },
+  { href: "/admin/access", label: "Доступ", icon: ShieldCheck, permission: "view_users" },
   { href: "/admin/settings", label: "Настройки", icon: Settings, permission: "view_settings" },
+  { href: "/admin/system", label: "Система", icon: ServerCog, permission: "edit_settings" },
 ];
 
 export default function AdminLayout() {
@@ -30,14 +33,31 @@ export default function AdminLayout() {
   const { role, loading: roleLoading, hasPermission } = useUserRole();
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) navigate("/admin/login");
-      else setUserEmail(session.user.email || "");
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!session) { navigate("/admin/login"); setAuthLoading(false); return; }
+      setUserEmail(session.user.email || "");
+      // Check approval
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_approved, is_blocked")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (profile && (!profile.is_approved || profile.is_blocked)) {
+        navigate("/admin/pending");
+      }
       setAuthLoading(false);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) navigate("/admin/login");
-      else setUserEmail(session?.user?.email || "");
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { navigate("/admin/login"); setAuthLoading(false); return; }
+      setUserEmail(session?.user?.email || "");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_approved, is_blocked")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (profile && (!profile.is_approved || profile.is_blocked)) {
+        navigate("/admin/pending");
+      }
       setAuthLoading(false);
     });
   }, [navigate]);

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice } from "@/lib/utils";
+import { encryptPII } from "@/lib/encryption";
 import {
   Select,
   SelectContent,
@@ -35,6 +36,7 @@ export default function BookingPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedServices, setSelectedServices] = useState<ServiceOption[]>([]);
   const [form, setForm] = useState({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
+  const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export default function BookingPage() {
     else if (!/^[\+\d\s\-\(\)]{7,20}$/.test(form.phone)) errs.phone = "Некорректный номер";
     if (!form.car_make.trim()) errs.car_make = "Укажите марку автомобиля";
     if (selectedServices.length === 0) errs.services = "Выберите хотя бы одну услугу";
+    if (!consentGiven) errs.consent = "Необходимо согласие на обработку персональных данных";
     return errs;
   };
 
@@ -92,11 +95,17 @@ export default function BookingPage() {
 
     try {
       const serviceNames = selectedServices.map((s) => s.name).join(", ");
-      const { error } = await supabase.from("appointments").insert({
+      // Encrypt PII fields (ФЗ-152)
+      const encrypted = encryptPII({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        car_make: form.car_make.trim(),
         car_vin: form.car_vin.trim() || null,
+      });
+      const { error } = await supabase.from("appointments").insert({
+        name: encrypted.name,
+        phone: encrypted.phone,
+        car_make: form.car_make.trim(),
+        car_vin: encrypted.car_vin,
         service_type: serviceNames,
         services: selectedServices.map((s) => ({ id: s.id, name: s.name, price_from: s.price_from, price_to: s.price_to })),
         total_price: totalMin,
@@ -398,17 +407,41 @@ export default function BookingPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-              >
-                {loading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</>
-                ) : (
-                  "Отправить заявку →"
-                )}
-              </button>
-              <p className="font-mono text-xs text-muted-foreground text-center mt-3">
-                Нажимая кнопку, вы соглашаетесь на обработку персональных данных
-              </p>
+              className="w-full bg-orange text-primary-foreground px-8 py-4 font-display text-2xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+              {loading ? (
+                <><Loader2 className="w-5 h-5 animate-spin" />Отправляем...</>
+              ) : (
+                "Отправить заявку →"
+              )}
+            </button>
+
+            {/* Consent checkbox (ФЗ-152) */}
+            <div className="mt-4">
+              <label className={`flex items-start gap-3 cursor-pointer ${errors.consent ? "text-destructive" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={(e) => {
+                    setConsentGiven(e.target.checked);
+                    if (errors.consent) setErrors((p) => { const er = { ...p }; delete er.consent; return er; });
+                  }}
+                  className="mt-1 w-4 h-4 accent-orange flex-shrink-0"
+                />
+                <span className="font-mono text-xs text-muted-foreground leading-relaxed">
+                  Я даю согласие на{" "}
+                  <a href="/privacy" target="_blank" className="text-orange hover:underline">
+                    обработку персональных данных
+                  </a>{" "}
+                  в соответствии с ФЗ-152 «О персональных данных». Данные защищены шифрованием AES-256.
+                </span>
+              </label>
+              {errors.consent && (
+                <p className="font-mono text-xs text-destructive mt-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />{errors.consent}
+                </p>
+              )}
+            </div>
             </div>
           </form>
         </div>

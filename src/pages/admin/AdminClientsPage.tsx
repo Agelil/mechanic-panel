@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Users, Phone, Car, Star, MessageSquare, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { decrypt } from "@/lib/encryption";
 
 interface Client {
   id: string;
@@ -41,6 +42,19 @@ export default function AdminClientsPage() {
       setClients(c.data || []);
       setTgUsers(t.data || []);
       setLoading(false);
+    });
+
+    // Security audit log: record viewing of client data
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        supabase.from("security_audit_log").insert({
+          user_id: session.user.id,
+          user_email: session.user.email,
+          action: "view_clients",
+          target_table: "clients",
+          details: { page: "AdminClientsPage" },
+        });
+      }
     });
   }, []);
 
@@ -104,7 +118,7 @@ export default function AdminClientsPage() {
                       <div className="flex flex-wrap gap-4 mt-1">
                         <span className="flex items-center gap-1 font-mono text-sm">
                           <Phone className="w-3 h-3 text-orange" />
-                          <a href={`tel:${client.phone}`} className="hover:text-orange transition-colors">{client.phone}</a>
+                          <a href={`tel:${decrypt(client.phone)}`} className="hover:text-orange transition-colors">{decrypt(client.phone)}</a>
                         </span>
                         {client.telegram_username && (
                           <span className="flex items-center gap-1 font-mono text-sm text-muted-foreground">

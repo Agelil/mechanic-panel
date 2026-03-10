@@ -13,6 +13,7 @@ import PortfolioPage from "@/pages/PortfolioPage";
 import BookingPage from "@/pages/BookingPage";
 import CabinetPage from "@/pages/CabinetPage";
 import NotFound from "@/pages/NotFound";
+import PrivacyPage from "@/pages/PrivacyPage";
 
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
@@ -26,6 +27,9 @@ import AdminClientsPage from "@/pages/admin/AdminClientsPage";
 import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
 import AdminReviewsPage from "@/pages/admin/AdminReviewsPage";
+import AdminAccessPage from "@/pages/admin/AdminAccessPage";
+import AdminSystemPage from "@/pages/admin/AdminSystemPage";
+import PendingApprovalPage from "@/components/PendingApprovalPage";
 
 const queryClient = new QueryClient();
 
@@ -51,8 +55,10 @@ const App = () => (
           <Route path="/portfolio" element={<PublicLayout><PortfolioPage /></PublicLayout>} />
           <Route path="/booking" element={<PublicLayout><BookingPage /></PublicLayout>} />
           <Route path="/cabinet" element={<PublicLayout><CabinetPage /></PublicLayout>} />
+          <Route path="/privacy" element={<PublicLayout><PrivacyPage /></PublicLayout>} />
 
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin/pending" element={<PendingApprovalPage />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="services" element={<AdminServicesPage />} />
@@ -63,6 +69,8 @@ const App = () => (
             <Route path="clients" element={<AdminClientsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="reviews" element={<AdminReviewsPage />} />
+            <Route path="access" element={<AdminAccessPage />} />
+            <Route path="system" element={<AdminSystemPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
 
