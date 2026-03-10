@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Shield, Zap, Eye, CheckCircle2, Phone, Tag, Percent } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ReviewsSection } from "@/components/ReviewsSection";
 
 const stats = [
   { value: "12+", label: "лет на рынке" },
