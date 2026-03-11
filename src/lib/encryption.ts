@@ -26,7 +26,7 @@ export function decrypt(value: string | null | undefined): string {
   if (!value.startsWith(PREFIX)) return value; // plain text fallback
   
   // Try all known keys: current key + hardcoded fallbacks
-  const keys = getDecryptionKeys();
+  const keys = getAllEncryptionKeys();
   
   for (const key of keys) {
     try {
