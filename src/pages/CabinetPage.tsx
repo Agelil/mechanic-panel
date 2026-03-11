@@ -321,6 +321,8 @@ export default function CabinetPage() {
               </div>
             ) : !phone ? (
               <PhoneLinkPrompt tgUser={tgUser} onLinked={(p) => { setPhone(p); loadClientData(tgUser); }} />
+            ) : needsName ? (
+              <NamePrompt phone={phone} currentName={clientName} onSaved={(name) => { setClientName(name); setNeedsName(false); }} />
             ) : appointments.length === 0 ? (
               <div className="text-center py-16 bg-surface border-2 border-dashed border-border">
                 <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />
