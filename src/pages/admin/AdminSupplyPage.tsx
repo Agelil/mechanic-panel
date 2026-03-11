@@ -116,20 +116,20 @@ export default function AdminSupplyPage() {
     setSubmitting(true);
     try {
       const { data: { session: s } } = await supabase.auth.getSession();
-      const { data, error } = await withTimeout(
-        supabase.from("supply_orders").insert({
-          master_id: s?.user?.id || null,
-          master_name: masterName.trim(),
-          supply_type: form.supply_type,
-          item_name: form.item_name.trim(),
-          quantity: Number(form.quantity),
-          unit: form.unit.trim() || "шт.",
-          urgency: form.urgency,
-          appointment_id: form.appointment_id.trim() || null,
-          notes: form.notes.trim() || null,
-          status: "pending",
-        }).select().single()
-      );
+      const insertPromise = supabase.from("supply_orders").insert({
+        master_id: s?.user?.id || null,
+        master_name: masterName.trim(),
+        supply_type: form.supply_type,
+        item_name: form.item_name.trim(),
+        quantity: Number(form.quantity),
+        unit: form.unit.trim() || "шт.",
+        urgency: form.urgency,
+        appointment_id: form.appointment_id.trim() || null,
+        notes: form.notes.trim() || null,
+        status: "pending",
+      }).select().single();
+
+      const { data, error } = await withTimeout(insertPromise);
 
       if (error) {
         toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -162,16 +162,15 @@ export default function AdminSupplyPage() {
         variant: "destructive",
       });
     } finally {
-      setSubmitting(false); // ВСЕГДА сбрасываем, даже при таймауте
+      setSubmitting(false);
     }
   };
 
   const updateStatus = async (id: string, status: SupplyStatus) => {
     setUpdatingId(id);
     try {
-      const { error } = await withTimeout(
-        supabase.from("supply_orders").update({ status }).eq("id", id)
-      );
+      const updatePromise = supabase.from("supply_orders").update({ status }).eq("id", id);
+      const { error } = await withTimeout(updatePromise);
       if (error) {
         toast({ title: "Ошибка обновления", description: error.message, variant: "destructive" });
         return;
@@ -184,7 +183,7 @@ export default function AdminSupplyPage() {
         variant: "destructive",
       });
     } finally {
-      setUpdatingId(null); // ВСЕГДА сбрасываем
+      setUpdatingId(null);
     }
   };
 
