@@ -131,7 +131,7 @@ export default function PortfolioPage() {
                 <div key={item.id} className="bg-background hover:bg-surface transition-colors group">
                   {/* Image area — click opens lightbox */}
                   <div
-                    className="relative cursor-zoom-in"
+                    className="relative"
                     onClick={() => setLightbox(item)}
                     role="button"
                     tabIndex={0}
