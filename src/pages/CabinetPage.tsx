@@ -166,7 +166,7 @@ export default function CabinetPage() {
           const apptsWithDocs = appts.map((a) => ({
             ...a,
             services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
-            work_items: Array.isArray(a.work_items) ? a.work_items as WorkItem[] : [],
+            work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
             parts_cost: (a as any).parts_cost ?? 0,
             services_cost: (a as any).services_cost ?? 0,
             documents: docs?.filter((d) => d.appointment_id === a.id) || [],
