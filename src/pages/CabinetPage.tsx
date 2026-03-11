@@ -453,6 +453,84 @@ export default function CabinetPage() {
               </div>
             </div>
 
+            {/* My Cars Section */}
+            <div className="bg-surface border-2 border-border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Car className="w-5 h-5 text-orange" />
+                  <h3 className="font-display text-xl tracking-wider">МОИ АВТОМОБИЛИ</h3>
+                  <span className="font-mono text-xs text-muted-foreground">({cars.length})</span>
+                </div>
+                <button
+                  onClick={() => setShowAddCar(!showAddCar)}
+                  className="flex items-center gap-1.5 font-mono text-xs text-orange hover:text-orange-bright transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Добавить
+                </button>
+              </div>
+
+              {showAddCar && (
+                <div className="border border-orange/30 bg-orange/5 p-4 mb-4 space-y-3">
+                  <input
+                    type="text"
+                    value={newCarBrand}
+                    onChange={(e) => setNewCarBrand(e.target.value)}
+                    placeholder="Марка и модель (например Toyota Camry 2020)"
+                    className="w-full bg-background border-2 border-border px-3 py-2 font-mono text-sm focus:outline-none focus:border-orange"
+                  />
+                  <input
+                    type="text"
+                    value={newCarVin}
+                    onChange={(e) => setNewCarVin(e.target.value)}
+                    placeholder="VIN (необязательно)"
+                    maxLength={17}
+                    className="w-full bg-background border-2 border-border px-3 py-2 font-mono text-sm focus:outline-none focus:border-orange uppercase"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddCar}
+                      disabled={addingCar || !newCarBrand.trim()}
+                      className="flex items-center gap-1.5 bg-orange text-primary-foreground px-4 py-2 font-mono text-xs hover:bg-orange-bright transition-colors disabled:opacity-50"
+                    >
+                      {addingCar ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                      Сохранить
+                    </button>
+                    <button
+                      onClick={() => { setShowAddCar(false); setNewCarBrand(""); setNewCarVin(""); }}
+                      className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-2 border border-border"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {cars.length === 0 && !showAddCar ? (
+                <p className="font-mono text-xs text-muted-foreground text-center py-4">
+                  Нет сохранённых автомобилей. Добавьте авто для быстрой записи на сервис.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {cars.map((car) => (
+                    <div key={car.id} className="flex items-center justify-between border border-border p-3">
+                      <div>
+                        <p className="font-mono text-sm font-bold">{car.brand_model}</p>
+                        {car.vin && <p className="font-mono text-xs text-muted-foreground">VIN: {car.vin}</p>}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCar(car.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                        title="Удалить"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {needsName ? (
               <NamePrompt phone={phone} currentName={clientName} onSaved={(name) => { setClientName(name); setNeedsName(false); }} />
             ) : !phone ? (
