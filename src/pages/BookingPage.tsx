@@ -82,8 +82,6 @@ export default function BookingPage() {
           .eq("user_id", session.user.id)
           .maybeSingle();
         
-        // Find last appointment by email or user
-        const userEmail = session.user.email;
         const userName = profile?.full_name || session.user.user_metadata?.full_name || "";
         
         // Get phone from users_registry
@@ -93,6 +91,16 @@ export default function BookingPage() {
           .eq("user_id", session.user.id)
           .maybeSingle();
         const regPhone = (regData as any)?.phone || "";
+
+        // Load user's cars
+        const { data: carsData } = await supabase
+          .from("customer_cars" as any)
+          .select("id, brand_model, vin")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false });
+        if (carsData && (carsData as any[]).length > 0) {
+          setUserCars(carsData as any as CustomerCar[]);
+        }
 
         // Last appointment
         if (regPhone || userName) {
