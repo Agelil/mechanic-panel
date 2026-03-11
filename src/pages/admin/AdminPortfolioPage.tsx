@@ -344,7 +344,7 @@ export default function AdminPortfolioPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {items.map((item) => (
             <div key={item.id}>
-              {editing === item.id ? <FormUI /> : (
+              {editing === item.id ? formUI : (
                 <div className="bg-surface border-2 border-border hover:border-orange/30 transition-colors overflow-hidden">
                   {(item.image_after_url || item.image_before_url) && (
                     <div className="flex">
