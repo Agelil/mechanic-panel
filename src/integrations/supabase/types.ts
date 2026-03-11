@@ -753,6 +753,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_count: { Args: never; Returns: number }
       get_user_role: { Args: { _user_id: string }; Returns: string }
       has_permission: {
         Args: { _permission: string; _user_id: string }
