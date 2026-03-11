@@ -89,24 +89,59 @@ export default function CabinetPage() {
   const [clientName, setClientName] = useState<string | null>(null);
   const [needsName, setNeedsName] = useState(false);
 
+  // Check for Supabase auth session (email login)
+  const [emailUser, setEmailUser] = useState<{ id: string; email: string; fullName: string } | null>(null);
+
   useEffect(() => {
-    const saved = localStorage.getItem("tg_cabinet_user");
-    if (saved) {
-      try {
-        const user = JSON.parse(saved) as TelegramUser;
-        const now = Math.floor(Date.now() / 1000);
-        if (now - user.auth_date < 86400) {
-          setTgUser(user);
-          loadClientData(user);
+    // Check Supabase auth first
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        
+        const fullName = profile?.full_name || session.user.user_metadata?.full_name || session.user.email || "";
+        setEmailUser({ id: session.user.id, email: session.user.email || "", fullName });
+
+        // Find phone from registry
+        const { data: reg } = await supabase
+          .from("users_registry" as any)
+          .select("phone")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        const regPhone = (reg as any)?.phone;
+        if (regPhone) {
+          setPhone(regPhone);
+          loadClientDataByPhone(regPhone, fullName);
         } else {
-          localStorage.removeItem("tg_cabinet_user");
+          // Try to find by email in clients
+          setLoading(false);
+          setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
         }
-      } catch { localStorage.removeItem("tg_cabinet_user"); }
-    }
+        return;
+      }
+
+      // Fallback: Telegram session
+      const saved = localStorage.getItem("tg_cabinet_user");
+      if (saved) {
+        try {
+          const user = JSON.parse(saved) as TelegramUser;
+          const now = Math.floor(Date.now() / 1000);
+          if (now - user.auth_date < 86400) {
+            setTgUser(user);
+            loadClientData(user);
+          } else {
+            localStorage.removeItem("tg_cabinet_user");
+          }
+        } catch { localStorage.removeItem("tg_cabinet_user"); }
+      }
+    });
   }, []);
 
   useEffect(() => {
-    if (tgUser || !widgetRef.current) return;
+    if (tgUser || emailUser || !widgetRef.current) return;
     (window as unknown as Record<string, unknown>).onTelegramAuth = (user: TelegramUser) => {
       localStorage.setItem("tg_cabinet_user", JSON.stringify(user));
       setTgUser(user);
@@ -124,7 +159,7 @@ export default function CabinetPage() {
       script.async = true;
       widgetRef.current?.appendChild(script);
     });
-  }, [tgUser]);
+  }, [tgUser, emailUser]);
 
   const loadClientData = async (user: TelegramUser) => {
     setLoading(true);
