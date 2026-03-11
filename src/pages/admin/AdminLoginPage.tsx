@@ -273,6 +273,33 @@ export default function AdminLoginPage() {
 
               <div>
                 <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
+                  Автомобиль (марка/модель)
+                </label>
+                <input
+                  type="text"
+                  value={regCarMake}
+                  onChange={(e) => setRegCarMake(e.target.value)}
+                  placeholder="Toyota Camry 2020"
+                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
+                  VIN номер (необязательно)
+                </label>
+                <input
+                  type="text"
+                  value={regCarVin}
+                  onChange={(e) => setRegCarVin(e.target.value.toUpperCase())}
+                  placeholder="WAUZZZ8K9BA012345"
+                  maxLength={17}
+                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
                   Email
                 </label>
                 <input

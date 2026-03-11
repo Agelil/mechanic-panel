@@ -54,14 +54,6 @@ export function Navbar() {
               {item.label}
             </Link>
           ))}
-          {settings.module_booking && (
-            <Link
-              to="/booking"
-              className="ml-4 px-5 py-2 bg-orange text-primary-foreground font-mono text-sm font-bold uppercase tracking-wider hover:bg-orange-bright transition-colors shadow-brutal-sm"
-            >
-              Записаться →
-            </Link>
-          )}
         </div>
 
         {/* Mobile Toggle */}
