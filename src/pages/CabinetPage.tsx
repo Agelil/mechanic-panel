@@ -365,6 +365,46 @@ export default function CabinetPage() {
                           </div>
                         );
                       })()}
+
+                      {/* Use bonuses toggle */}
+                      {bonusPoints > 0 && currentAppt.total_price && (
+                        <div className="mt-4 pt-4 border-t-2 border-border">
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <div
+                              onClick={() => setUseBonuses((v) => !v)}
+                              className={`w-10 h-6 rounded-full border-2 flex items-center transition-colors ${useBonuses ? "bg-orange border-orange" : "bg-background border-border"}`}
+                            >
+                              <div className={`w-4 h-4 rounded-full bg-primary-foreground transition-transform mx-0.5 ${useBonuses ? "translate-x-4" : "translate-x-0"}`} />
+                            </div>
+                            <div>
+                              <span className="font-mono text-sm font-bold">Использовать бонусы</span>
+                              <span className="font-mono text-xs text-muted-foreground block">
+                                {useBonuses
+                                  ? `Скидка ${formatPrice(bonusDiscount)} (−${bonusDiscount} баллов из ${bonusPoints})`
+                                  : `Доступно ${bonusPoints} баллов · скидка до ${formatPrice(bonusDiscount)}`
+                                }
+                              </span>
+                            </div>
+                          </label>
+                          {useBonuses && (
+                            <div className="mt-3 bg-orange/5 border border-orange/20 p-3 font-mono text-sm">
+                              <div className="flex justify-between">
+                                <span>Стоимость работ</span>
+                                <span>{formatPrice(currentAppt.total_price)}</span>
+                              </div>
+                              <div className="flex justify-between text-orange">
+                                <span>Скидка бонусами</span>
+                                <span>−{formatPrice(bonusDiscount)}</span>
+                              </div>
+                              <div className="flex justify-between font-bold border-t border-orange/20 pt-2 mt-2">
+                                <span>Итого к оплате</span>
+                                <span className="text-orange">{formatPrice(currentAppt.total_price - bonusDiscount)}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">Сообщите менеджеру об оплате бонусами при получении автомобиля.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
