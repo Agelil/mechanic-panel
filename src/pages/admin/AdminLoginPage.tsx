@@ -166,6 +166,13 @@ export default function AdminLoginPage() {
           >
             <h2 className="font-display text-2xl tracking-wider mb-6">ВХОД</h2>
 
+            {isExpired && (
+              <div className="flex items-start gap-2 bg-orange/10 border border-orange/30 px-3 py-2 mb-4">
+                <AlertTriangle className="w-4 h-4 text-orange flex-shrink-0 mt-0.5" />
+                <p className="font-mono text-xs text-orange">Сессия истекла — войдите снова</p>
+              </div>
+            )}
+
             <div className="space-y-5">
               <div>
                 <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
