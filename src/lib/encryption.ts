@@ -3,7 +3,7 @@
  * Encrypts: ФИО, телефон, VIN
  */
 import CryptoJS from "crypto-js";
-import { getEncryptionKey } from "./db-config";
+import { getEncryptionKey, getAllEncryptionKeys } from "./db-config";
 
 const PREFIX = "enc:v1:";
 
