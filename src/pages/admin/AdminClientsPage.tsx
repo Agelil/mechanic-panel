@@ -91,10 +91,16 @@ export default function AdminClientsPage() {
 
   // Edit modal
   const [editClient, setEditClient] = useState<Client | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", phone: "", car_make: "", car_vin: "" });
+  const [editForm, setEditForm] = useState({ name: "", phone: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editNameError, setEditNameError] = useState("");
   const [phoneWarning, setPhoneWarning] = useState(false);
+
+  // Car management in edit modal
+  const [editCars, setEditCars] = useState<CustomerCar[]>([]);
+  const [editNewCarBrand, setEditNewCarBrand] = useState("");
+  const [editNewCarVin, setEditNewCarVin] = useState("");
+  const [editClientUserId, setEditClientUserId] = useState<string | null>(null);
 
   // Delete modal
   const [deleteClient, setDeleteClient] = useState<Client | null>(null);
