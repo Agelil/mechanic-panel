@@ -494,6 +494,9 @@ export default function AdminAppointmentsPage() {
                       </div>
                     )}
 
+                    {/* Order Documents */}
+                    <OrderDocumentsBlock appointmentId={appt.id} />
+
                     {/* Photos */}
                     <div>
                       <div className="flex items-center justify-between mb-3">
