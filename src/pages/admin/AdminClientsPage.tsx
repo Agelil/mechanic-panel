@@ -59,6 +59,8 @@ const STATUS_LABELS: Record<string, string> = {
 export default function AdminClientsPage() {
   const { toast } = useToast();
   const canEditBonuses = usePermission("edit_bonuses");
+  const canViewBonuses = usePermission("view_client_bonuses");
+  const canViewHistory = usePermission("view_service_history");
 
   const [clients, setClients] = useState<Client[]>([]);
   const [tgUsers, setTgUsers] = useState<TelegramUser[]>([]);
