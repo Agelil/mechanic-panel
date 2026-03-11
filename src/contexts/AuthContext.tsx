@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase
           .from("role_permissions")
           .select("permission")
-          .eq("role", cached)
+          .eq("role", cached as "admin" | "manager" | "master")
           .then(({ data }) => {
             if (data) dbPermissionsCache.set(userId, new Set(data.map((d: { permission: string }) => d.permission)));
           });
