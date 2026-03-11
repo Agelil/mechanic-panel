@@ -336,7 +336,7 @@ export default function AdminPortfolioPage() {
         </button>
       </div>
 
-      {creating && <FormUI />}
+      {creating && formUI}
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-orange animate-spin" /></div>
