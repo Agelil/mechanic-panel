@@ -153,10 +153,20 @@ export default function CabinetPage() {
 
       if (foundPhone) {
         setPhone(foundPhone);
+        setPhoneInput(foundPhone);
         await loadClientDataByPhone(foundPhone, fullName);
       } else {
         setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
       }
+
+      // Load user's cars
+      const { data: userCars } = await supabase
+        .from("customer_cars" as any)
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+      if (userCars) setCars(userCars as any as CustomerCar[]);
+
       setLoading(false);
     });
   }, []);
