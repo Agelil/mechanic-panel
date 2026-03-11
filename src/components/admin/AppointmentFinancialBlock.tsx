@@ -64,10 +64,13 @@ export default function AppointmentFinancialBlock({
 
   // Reactive totals
   const { partsCost, servicesCost, grandTotal } = useMemo(() => {
+    if (useDirectInput) {
+      return { partsCost: directPartsCost, servicesCost: directServicesCost, grandTotal: directPartsCost + directServicesCost };
+    }
     const partsCost = items.filter((i) => i.is_part).reduce((s, i) => s + i.qty * i.unit_price, 0);
     const servicesCost = items.filter((i) => !i.is_part).reduce((s, i) => s + i.qty * i.unit_price, 0);
     return { partsCost, servicesCost, grandTotal: partsCost + servicesCost };
-  }, [items]);
+  }, [items, useDirectInput, directPartsCost, directServicesCost]);
 
   const updateItem = (id: string, field: keyof WorkItem, value: string | number | boolean) => {
     setItems((prev) => {
