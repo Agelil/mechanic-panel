@@ -1,23 +1,14 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import {
   Car, FileText, Star, Clock, CheckCircle2, Wrench,
   Package, XCircle, Download, LogOut, User, Phone,
-  ChevronRight, Loader2, Shield, Gift, TrendingUp
+  ChevronRight, Loader2, Shield, Gift, TrendingUp,
+  Link2, Unlink
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
-
-interface TelegramUser {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
-}
 
 interface AppointmentDoc {
   id: string;
@@ -76,100 +67,79 @@ const TERMINAL = ["completed", "cancelled"];
 
 export default function CabinetPage() {
   const navigate = useNavigate();
-  const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [bonusPoints, setBonusPoints] = useState<number>(0);
   const [bonusPct, setBonusPct] = useState<number>(0);
   const [maxBonusPct, setMaxBonusPct] = useState<number>(30);
   const [useBonuses, setUseBonuses] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const widgetRef = useRef<HTMLDivElement>(null);
   const [clientName, setClientName] = useState<string | null>(null);
   const [needsName, setNeedsName] = useState(false);
 
-  // Check for Supabase auth session (email login)
+  // Auth state
   const [emailUser, setEmailUser] = useState<{ id: string; email: string; fullName: string } | null>(null);
 
+  // Telegram linking
+  const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
+  const [botUsername, setBotUsername] = useState<string>("s_tochka_bot");
+  const [linkingTg, setLinkingTg] = useState(false);
+
   useEffect(() => {
-    // Check Supabase auth first
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("user_id", session.user.id)
-          .maybeSingle();
-        
-        const fullName = profile?.full_name || session.user.user_metadata?.full_name || session.user.email || "";
-        setEmailUser({ id: session.user.id, email: session.user.email || "", fullName });
-
-        // Find phone from registry
-        const { data: reg } = await supabase
-          .from("users_registry" as any)
-          .select("phone")
-          .eq("user_id", session.user.id)
-          .maybeSingle();
-        let foundPhone = (reg as any)?.phone;
-
-        // Fallback: check clients table by name match
-        if (!foundPhone && fullName) {
-          const { data: clientByName } = await supabase
-            .from("clients")
-            .select("phone")
-            .eq("name", fullName.trim())
-            .maybeSingle();
-          if (clientByName?.phone) foundPhone = clientByName.phone;
-        }
-
-        if (foundPhone) {
-          setPhone(foundPhone);
-          loadClientDataByPhone(foundPhone, fullName);
-        } else {
-          setLoading(false);
-          setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
-        }
+      if (!session?.user) {
+        setLoading(false);
         return;
       }
 
-      // Fallback: Telegram session
-      const saved = localStorage.getItem("tg_cabinet_user");
-      if (saved) {
-        try {
-          const user = JSON.parse(saved) as TelegramUser;
-          const now = Math.floor(Date.now() / 1000);
-          if (now - user.auth_date < 86400) {
-            setTgUser(user);
-            loadClientData(user);
-          } else {
-            localStorage.removeItem("tg_cabinet_user");
-          }
-        } catch { localStorage.removeItem("tg_cabinet_user"); }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, telegram_chat_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      const fullName = profile?.full_name || session.user.user_metadata?.full_name || session.user.email || "";
+      setEmailUser({ id: session.user.id, email: session.user.email || "", fullName });
+      setTelegramChatId(profile?.telegram_chat_id || null);
+
+      // Load bot username
+      supabase.from("settings").select("value").eq("key", "telegram_bot_username").maybeSingle().then(({ data }) => {
+        if (data?.value) setBotUsername(data.value);
+      });
+
+      // Find phone from registry
+      const { data: reg } = await supabase
+        .from("users_registry" as any)
+        .select("phone, telegram_chat_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      let foundPhone = (reg as any)?.phone;
+
+      // Also check telegram_chat_id from registry
+      if (!telegramChatId && (reg as any)?.telegram_chat_id) {
+        setTelegramChatId((reg as any).telegram_chat_id);
       }
+
+      // Fallback: check clients table by name match
+      if (!foundPhone && fullName) {
+        const { data: clientByName } = await supabase
+          .from("clients")
+          .select("phone")
+          .eq("name", fullName.trim())
+          .maybeSingle();
+        if (clientByName?.phone) foundPhone = clientByName.phone;
+      }
+
+      if (foundPhone) {
+        setPhone(foundPhone);
+        await loadClientDataByPhone(foundPhone, fullName);
+      } else {
+        setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
+      }
+      setLoading(false);
     });
   }, []);
-
-  useEffect(() => {
-    if (tgUser || emailUser || !widgetRef.current) return;
-    (window as unknown as Record<string, unknown>).onTelegramAuth = (user: TelegramUser) => {
-      localStorage.setItem("tg_cabinet_user", JSON.stringify(user));
-      setTgUser(user);
-      loadClientData(user);
-    };
-    supabase.from("settings").select("value").eq("key", "telegram_bot_username").maybeSingle().then(({ data }) => {
-      const botName = data?.value || "ServiceTochkaBot";
-      const script = document.createElement("script");
-      script.src = "https://telegram.org/js/telegram-widget.js?22";
-      script.setAttribute("data-telegram-login", botName);
-      script.setAttribute("data-size", "large");
-      script.setAttribute("data-onauth", "onTelegramAuth(user)");
-      script.setAttribute("data-request-access", "write");
-      script.setAttribute("data-radius", "0");
-      script.async = true;
-      widgetRef.current?.appendChild(script);
-    });
-  }, [tgUser, emailUser]);
 
   const loadAppointmentsByPhone = async (clientPhone: string) => {
     const { data: settings } = await supabase
@@ -210,12 +180,15 @@ export default function CabinetPage() {
 
     const { data: client } = await supabase
       .from("clients")
-      .select("bonus_points, name")
+      .select("bonus_points, name, telegram_chat_id")
       .eq("phone", clientPhone)
       .maybeSingle();
     if (client) {
       setBonusPoints(client.bonus_points || 0);
       setClientName(client.name || null);
+      if (client.telegram_chat_id && !telegramChatId) {
+        setTelegramChatId(client.telegram_chat_id);
+      }
       const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
       setNeedsName(!hasFullName);
     } else {
@@ -224,40 +197,16 @@ export default function CabinetPage() {
   };
 
   const loadClientDataByPhone = async (clientPhone: string, name: string) => {
-    setLoading(true);
     try {
       await loadAppointmentsByPhone(clientPhone);
       if (name && /^\S+\s+\S+/.test(name.trim())) {
         setNeedsName(false);
         setClientName(name);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadClientData = async (user: TelegramUser) => {
-    setLoading(true);
-    try {
-      const { data: tgSession } = await supabase
-        .from("telegram_sessions")
-        .select("phone")
-        .eq("telegram_id", user.id)
-        .maybeSingle();
-
-      const clientPhone = tgSession?.phone || phone;
-      if (clientPhone) {
-        setPhone(clientPhone);
-        await loadAppointmentsByPhone(clientPhone);
-      }
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ }
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem("tg_cabinet_user");
-    setTgUser(null);
     setEmailUser(null);
     setAppointments([]);
     setPhone(null);
@@ -265,9 +214,21 @@ export default function CabinetPage() {
     await supabase.auth.signOut();
   };
 
+  const handleUnlinkTelegram = async () => {
+    if (!emailUser) return;
+    setLinkingTg(true);
+    // Clear telegram_chat_id from profiles and users_registry
+    await supabase.from("profiles").update({ telegram_chat_id: null }).eq("user_id", emailUser.id);
+    await supabase.from("users_registry" as any).update({ telegram_chat_id: null } as any).eq("user_id", emailUser.id);
+    if (phone) {
+      await supabase.from("clients").update({ telegram_chat_id: null }).eq("phone", phone);
+    }
+    setTelegramChatId(null);
+    setLinkingTg(false);
+  };
+
   const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
   const historyOrders = appointments.filter((a) => TERMINAL.includes(a.status));
-
   const currentAppt = activeOrders[0] || null;
 
   const bonusDiscount = (() => {
@@ -281,14 +242,17 @@ export default function CabinetPage() {
     return Math.floor(currentAppt.total_price * bonusPct / 100);
   })();
 
-  // Progress percentage for active order
   const progressPct = (() => {
     if (!currentAppt) return 0;
     const cfg = STATUS_CONFIG[currentAppt.status];
     if (!cfg || cfg.step === 0) return 0;
-    // 5 meaningful steps, completed = 100%
     return Math.min(100, Math.round((cfg.step / 6) * 100));
   })();
+
+  // Deep link for Telegram bot with user_id
+  const telegramLinkUrl = emailUser
+    ? `https://t.me/${botUsername}?start=link_${emailUser.id}`
+    : "#";
 
   return (
     <div className="min-h-screen pt-16 bg-background">
@@ -307,7 +271,11 @@ export default function CabinetPage() {
       </section>
 
       <div className="container mx-auto px-4 py-10">
-        {!tgUser && !emailUser ? (
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 text-orange animate-spin" />
+          </div>
+        ) : !emailUser ? (
           <div className="max-w-md mx-auto text-center">
             <div className="bg-surface border-2 border-border p-10 shadow-brutal">
               <div className="w-16 h-16 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-6">
@@ -318,17 +286,12 @@ export default function CabinetPage() {
                 Для доступа к истории заказов, документам и бонусам.
               </p>
               
-              {/* Email login button */}
               <a
                 href="/login?returnTo=/cabinet"
                 className="w-full inline-flex items-center justify-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors mb-4"
               >
                 Войти по Email
               </a>
-
-              {/* Telegram widget */}
-              <p className="font-mono text-xs text-muted-foreground mb-3">или через Telegram</p>
-              <div ref={widgetRef} className="flex justify-center mb-6" />
 
               <div className="mt-4 bg-orange/5 border border-orange/20 p-4 text-left">
                 <p className="font-mono text-xs text-muted-foreground leading-relaxed">
@@ -342,39 +305,60 @@ export default function CabinetPage() {
           <div className="max-w-3xl mx-auto space-y-8">
             {/* Profile + Bonus */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2 bg-surface border-2 border-border p-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  {tgUser?.photo_url ? (
-                    <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
-                  ) : (
+              <div className="sm:col-span-2 bg-surface border-2 border-border p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
                       <User className="w-6 h-6 text-orange" />
                     </div>
-                  )}
-                  <div>
-                    <p className="font-display text-2xl tracking-wider">
-                      {emailUser ? emailUser.fullName : `${tgUser?.first_name || ""} ${tgUser?.last_name || ""}`.trim()}
-                    </p>
-                    {emailUser && (
+                    <div>
+                      <p className="font-display text-2xl tracking-wider">{emailUser.fullName}</p>
                       <p className="font-mono text-xs text-muted-foreground">{emailUser.email}</p>
-                    )}
-                    {tgUser?.username && (
-                      <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
-                    )}
-                    {phone && (
-                      <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
-                        <Phone className="w-3 h-3" /> {phone}
-                      </p>
-                    )}
+                      {phone && (
+                        <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
+                          <Phone className="w-3 h-3" /> {phone}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 font-mono text-xs border border-border px-3 py-2 hover:border-destructive hover:text-destructive transition-colors"
+                  >
+                    <LogOut className="w-3 h-3" />
+                    Выйти
+                  </button>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 font-mono text-xs border border-border px-3 py-2 hover:border-destructive hover:text-destructive transition-colors"
-                >
-                  <LogOut className="w-3 h-3" />
-                  Выйти
-                </button>
+
+                {/* Telegram linking */}
+                <div className="border-t border-border pt-4">
+                  {telegramChatId ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <span className="font-mono text-xs text-green-500">Telegram подключен ✅</span>
+                      </div>
+                      <button
+                        onClick={handleUnlinkTelegram}
+                        disabled={linkingTg}
+                        className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        {linkingTg ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
+                        Отключить
+                      </button>
+                    </div>
+                  ) : (
+                    <a
+                      href={telegramLinkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright transition-colors"
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      Привязать Telegram
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div className="bg-surface border-2 border-orange/40 p-5 flex flex-col items-center justify-center gap-1">
@@ -389,14 +373,14 @@ export default function CabinetPage() {
               </div>
             </div>
 
-            {loading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="w-6 h-6 text-orange animate-spin" />
-              </div>
-            ) : !phone && tgUser ? (
-              <PhoneLinkPrompt tgUser={tgUser} onLinked={(p) => { setPhone(p); loadClientData(tgUser); }} />
-            ) : needsName ? (
+            {needsName ? (
               <NamePrompt phone={phone} currentName={clientName} onSaved={(name) => { setClientName(name); setNeedsName(false); }} />
+            ) : !phone ? (
+              <div className="text-center py-16 bg-surface border-2 border-dashed border-border">
+                <Phone className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />
+                <p className="font-mono text-sm text-muted-foreground">Телефон не привязан</p>
+                <p className="font-mono text-xs text-muted-foreground mt-1">Обратитесь к администратору для привязки номера</p>
+              </div>
             ) : appointments.length === 0 ? (
               <div className="text-center py-16 bg-surface border-2 border-dashed border-border">
                 <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />
@@ -458,163 +442,126 @@ export default function CabinetPage() {
                       </div>
 
                       {/* Timeline dots */}
-                      <div className="relative mb-6 mt-4">
-                        <div className="flex items-center justify-between relative">
-                          <div className="absolute top-3 left-0 right-0 h-0.5 bg-border" />
-                          {TIMELINE_STEPS.map((step) => {
-                            const cfg = STATUS_CONFIG[step.key];
-                            const currentStep = STATUS_CONFIG[currentAppt.status]?.step || 0;
-                            const isDone = cfg.step <= currentStep && currentAppt.status !== "cancelled";
-                            const isCurrent = step.key === currentAppt.status;
-                            return (
-                              <div key={step.key} className="relative flex flex-col items-center z-10">
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                  isCurrent
-                                    ? "border-orange bg-orange"
-                                    : isDone
-                                    ? "border-green-400 bg-green-400/20"
-                                    : "border-border bg-background"
-                                }`}>
-                                  {isDone && !isCurrent && <div className="w-2 h-2 rounded-full bg-green-400" />}
-                                  {isCurrent && <div className="w-2 h-2 rounded-full bg-primary-foreground animate-pulse" />}
-                                </div>
-                                <span className="font-mono text-xs text-muted-foreground mt-2 hidden sm:block text-center" style={{ fontSize: "10px" }}>
-                                  {step.label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Work items list */}
-                      {currentAppt.work_items.length > 0 && (
-                        <div className="border-t-2 border-border pt-4 mb-4">
-                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Работы и запчасти</p>
-                          <div className="space-y-1">
-                            {currentAppt.work_items.map((item, i) => (
-                              <div key={i} className="flex justify-between font-mono text-sm">
-                                <span className="flex items-center gap-2">
-                                  {item.type === "part" ? (
-                                    <Package className="w-3 h-3 text-muted-foreground" />
-                                  ) : (
-                                    <Wrench className="w-3 h-3 text-muted-foreground" />
-                                  )}
-                                  {item.name}
-                                </span>
-                                <span className="text-orange">{formatPrice(item.price)}</span>
-                              </div>
-                            ))}
-                          </div>
-                          {(currentAppt.parts_cost > 0 || currentAppt.services_cost > 0) && (
-                            <div className="mt-3 pt-3 border-t border-border space-y-1 font-mono text-xs text-muted-foreground">
-                              {currentAppt.parts_cost > 0 && (
-                                <div className="flex justify-between">
-                                  <span>Запчасти:</span>
-                                  <span>{formatPrice(currentAppt.parts_cost)}</span>
-                                </div>
-                              )}
-                              {currentAppt.services_cost > 0 && (
-                                <div className="flex justify-between">
-                                  <span>Работа:</span>
-                                  <span>{formatPrice(currentAppt.services_cost)}</span>
-                                </div>
+                      <div className="flex items-center gap-1 mt-3">
+                        {TIMELINE_STEPS.map((step, i) => {
+                          const cfg = STATUS_CONFIG[currentAppt.status];
+                          const currentStep = cfg?.step || 0;
+                          const stepNum = STATUS_CONFIG[step.key]?.step || 0;
+                          const isDone = currentStep >= stepNum;
+                          return (
+                            <div key={step.key} className="flex items-center gap-1 flex-1">
+                              <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
+                                isDone ? "bg-orange border-orange" : "bg-transparent border-border"
+                              }`} />
+                              {i < TIMELINE_STEPS.length - 1 && (
+                                <div className={`h-0.5 flex-1 ${isDone ? "bg-orange" : "bg-border"}`} />
                               )}
                             </div>
-                          )}
-                        </div>
-                      )}
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        {TIMELINE_STEPS.map((step) => (
+                          <span key={step.key} className="font-mono text-[10px] text-muted-foreground">{step.label}</span>
+                        ))}
+                      </div>
 
-                      {/* Services list (if no work_items yet) */}
-                      {currentAppt.work_items.length === 0 && currentAppt.services && currentAppt.services.length > 0 && (
-                        <div className="border-t-2 border-border pt-4 mb-4">
+                      {/* Services */}
+                      {currentAppt.services && currentAppt.services.length > 0 && (
+                        <div className="mt-5 pt-4 border-t border-border">
                           <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Услуги</p>
                           <div className="space-y-1">
                             {currentAppt.services.map((s, i) => (
                               <div key={i} className="flex justify-between font-mono text-sm">
                                 <span>{s.name}</span>
-                                <span className="text-orange">от {formatPrice(s.price_from)}</span>
+                                <span className="text-orange">{formatPrice(s.price_from)}</span>
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
 
-                      {/* Bonus forecast */}
-                      {bonusForecast > 0 && (
-                        <div className="bg-green-400/5 border border-green-400/20 p-3 mb-4">
-                          <div className="flex items-center gap-2 font-mono text-sm text-green-400">
-                            <TrendingUp className="w-4 h-4" />
-                            <span>За этот ремонт вам будет начислено <strong>{bonusForecast}</strong> бонусов ({bonusPct}%)</span>
+                      {/* Work items */}
+                      {currentAppt.work_items.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Работы и запчасти</p>
+                          <div className="space-y-1">
+                            {currentAppt.work_items.map((w, i) => (
+                              <div key={i} className="flex justify-between font-mono text-sm">
+                                <span className="flex items-center gap-1.5">
+                                  {w.type === "part" ? <Package className="w-3 h-3 text-muted-foreground" /> : <Wrench className="w-3 h-3 text-muted-foreground" />}
+                                  {w.name}
+                                </span>
+                                <span className="text-orange">{formatPrice(w.price)}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
 
-                      {/* Use bonuses toggle */}
+                      {/* Bonus block */}
                       {bonusPoints > 0 && currentAppt.total_price != null && currentAppt.total_price > 0 && (
-                        <div className="border-t-2 border-border pt-4">
-                          <label className="flex items-center gap-3 cursor-pointer select-none">
-                            <div
-                              onClick={() => setUseBonuses((v) => !v)}
-                              className={`w-10 h-6 rounded-full border-2 flex items-center transition-colors ${useBonuses ? "bg-orange border-orange" : "bg-background border-border"}`}
-                            >
-                              <div className={`w-4 h-4 rounded-full bg-primary-foreground transition-transform mx-0.5 ${useBonuses ? "translate-x-4" : "translate-x-0"}`} />
-                            </div>
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <div className="flex items-center justify-between">
                             <div>
-                              <span className="font-mono text-sm font-bold">Использовать бонусы</span>
-                              <span className="font-mono text-xs text-muted-foreground block">
-                                {useBonuses
-                                  ? `Скидка ${formatPrice(bonusDiscount)} (−${bonusDiscount} из ${bonusPoints})`
-                                  : `Доступно ${bonusPoints} баллов · скидка до ${formatPrice(bonusDiscount)}`
-                                }
-                              </span>
+                              <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Бонусная скидка</p>
+                              <p className="font-display text-xl text-orange mt-1">
+                                до {formatPrice(bonusDiscount)}
+                              </p>
                             </div>
-                          </label>
-                          {useBonuses && (
-                            <div className="mt-3 bg-orange/5 border border-orange/20 p-3 font-mono text-sm">
-                              <div className="flex justify-between">
-                                <span>Стоимость работ</span>
-                                <span>{formatPrice(currentAppt.total_price)}</span>
-                              </div>
-                              <div className="flex justify-between text-orange">
-                                <span>Скидка бонусами</span>
-                                <span>−{formatPrice(bonusDiscount)}</span>
-                              </div>
-                              <div className="flex justify-between font-bold border-t border-orange/20 pt-2 mt-2">
-                                <span>Итого к оплате</span>
-                                <span className="text-orange">{formatPrice(currentAppt.total_price - bonusDiscount)}</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-2">Сообщите менеджеру об оплате бонусами при получении автомобиля.</p>
+                            <div className="text-right">
+                              <p className="font-mono text-xs text-muted-foreground">Начисление</p>
+                              <p className="font-mono text-sm text-green-500">+{bonusForecast} б.</p>
                             </div>
-                          )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Documents */}
+                      {currentAppt.documents && currentAppt.documents.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Документы</p>
+                          <div className="space-y-2">
+                            {currentAppt.documents.map((doc) => (
+                              <a
+                                key={doc.id}
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright transition-colors"
+                              >
+                                <Download className="w-3 h-3" />
+                                {DOC_TYPE_LABELS[doc.doc_type] || doc.file_name}
+                              </a>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* ===== HISTORY ===== */}
+                {/* History */}
                 {historyOrders.length > 0 && (
                   <div>
-                    <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-3">
-                      // История обслуживаний
+                    <span className="font-mono text-xs text-orange uppercase tracking-widest block mb-3">
+                      // История ремонтов
                     </span>
                     <div className="space-y-3">
                       {historyOrders.map((appt) => {
                         const cfg = STATUS_CONFIG[appt.status];
                         const Icon = cfg?.icon || Clock;
                         const isOpen = expanded === appt.id;
+
                         return (
-                          <div key={appt.id} className="bg-surface border-2 border-border hover:border-orange/30 transition-colors">
+                          <div key={appt.id} className="bg-surface border-2 border-border">
                             <button
                               onClick={() => setExpanded(isOpen ? null : appt.id)}
-                              className="w-full p-5 flex items-center justify-between text-left"
+                              className="w-full p-5 flex items-center justify-between text-left hover:bg-background/50 transition-colors"
                             >
-                              <div className="flex items-center gap-4 flex-1 min-w-0">
-                                <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
-                                  <Car className="w-5 h-5 text-orange" />
-                                </div>
-                                <div className="min-w-0">
+                              <div className="flex items-center gap-3">
+                                <Car className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                <div>
                                   <p className="font-display text-xl tracking-wider">{appt.car_make}</p>
                                   <p className="font-mono text-xs text-muted-foreground">
                                     {new Date(appt.created_at).toLocaleDateString("ru-RU")}
@@ -622,11 +569,11 @@ export default function CabinetPage() {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                              <div className="flex items-center gap-3">
                                 {appt.total_price != null && appt.total_price > 0 && (
-                                  <span className="font-mono text-sm text-orange hidden sm:block">{formatPrice(appt.total_price)}</span>
+                                  <span className="font-mono text-sm text-orange">{formatPrice(appt.total_price)}</span>
                                 )}
-                                <span className={`font-mono text-xs flex items-center gap-1 ${cfg?.color || "text-orange"}`}>
+                                <span className={`font-mono text-xs flex items-center gap-1 ${cfg?.color}`}>
                                   <Icon className="w-3 h-3" />
                                   {cfg?.label}
                                 </span>
@@ -635,72 +582,44 @@ export default function CabinetPage() {
                             </button>
 
                             {isOpen && (
-                              <div className="border-t-2 border-border p-5 space-y-4">
-                                {/* Work items */}
+                              <div className="px-5 pb-5 pt-0 border-t border-border space-y-3">
+                                {appt.services && appt.services.length > 0 && (
+                                  <div>
+                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-1">Услуги</p>
+                                    {appt.services.map((s, i) => (
+                                      <div key={i} className="flex justify-between font-mono text-sm">
+                                        <span>{s.name}</span>
+                                        <span className="text-orange">{formatPrice(s.price_from)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {appt.work_items.length > 0 && (
                                   <div>
-                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Работы и запчасти</p>
-                                    <div className="space-y-1">
-                                      {appt.work_items.map((item, i) => (
-                                        <div key={i} className="flex justify-between font-mono text-sm">
-                                          <span>{item.name}</span>
-                                          <span className="text-orange">{formatPrice(item.price)}</span>
-                                        </div>
-                                      ))}
-                                    </div>
+                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-1">Работы и запчасти</p>
+                                    {appt.work_items.map((w, i) => (
+                                      <div key={i} className="flex justify-between font-mono text-sm">
+                                        <span>{w.name}</span>
+                                        <span className="text-orange">{formatPrice(w.price)}</span>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
-
-                                {/* Services */}
-                                {appt.work_items.length === 0 && appt.services && appt.services.length > 0 && (
-                                  <div>
-                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Услуги</p>
-                                    <div className="space-y-1">
-                                      {appt.services.map((s, i) => (
-                                        <div key={i} className="flex justify-between font-mono text-sm">
-                                          <span>{s.name}</span>
-                                          <span className="text-orange">от {formatPrice(s.price_from)}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Documents */}
                                 {appt.documents && appt.documents.length > 0 && (
                                   <div>
-                                    <p className="font-mono text-xs text-orange uppercase tracking-widest mb-2">
-                                      Документы ({appt.documents.length})
-                                    </p>
-                                    <div className="space-y-2">
-                                      {appt.documents.map((doc) => (
-                                        <a
-                                          key={doc.id}
-                                          href={doc.file_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-3 p-3 border border-border hover:border-orange hover:text-orange transition-colors"
-                                        >
-                                          <FileText className="w-4 h-4 flex-shrink-0" />
-                                          <div className="flex-1 min-w-0">
-                                            <span className="font-mono text-sm block">
-                                              {DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}
-                                            </span>
-                                            <span className="font-mono text-xs text-muted-foreground">
-                                              {new Date(doc.created_at).toLocaleDateString("ru-RU")}
-                                            </span>
-                                          </div>
-                                          <Download className="w-4 h-4 flex-shrink-0" />
-                                        </a>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {appt.total_price != null && appt.total_price > 0 && (
-                                  <div className="flex justify-between font-mono text-sm font-bold border-t border-border pt-3">
-                                    <span>Итого</span>
-                                    <span className="text-orange">{formatPrice(appt.total_price)}</span>
+                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-1">Документы</p>
+                                    {appt.documents.map((doc) => (
+                                      <a
+                                        key={doc.id}
+                                        href={doc.file_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright"
+                                      >
+                                        <Download className="w-3 h-3" />
+                                        {DOC_TYPE_LABELS[doc.doc_type] || doc.file_name}
+                                      </a>
+                                    ))}
                                   </div>
                                 )}
                               </div>
@@ -712,7 +631,7 @@ export default function CabinetPage() {
                   </div>
                 )}
 
-                {/* Active orders beyond first (rare edge case) */}
+                {/* Active orders beyond first */}
                 {activeOrders.length > 1 && (
                   <div>
                     <span className="font-mono text-xs text-orange uppercase tracking-widest block mb-3">
@@ -751,75 +670,8 @@ export default function CabinetPage() {
   );
 }
 
-function PhoneLinkPrompt({ tgUser, onLinked }: {
-  tgUser: TelegramUser;
-  onLinked: (phone: string) => void;
-}) {
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleLink = async () => {
-    if (!/^[\+\d\s\-\(\)]{7,20}$/.test(phone)) {
-      setError("Некорректный номер телефона");
-      return;
-    }
-    setLoading(true);
-    try {
-      await supabase.from("telegram_sessions").upsert({
-        telegram_id: tgUser.id,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name,
-        username: tgUser.username,
-        photo_url: tgUser.photo_url,
-        phone: phone.trim(),
-        auth_date: tgUser.auth_date,
-        hash: tgUser.hash,
-      }, { onConflict: "telegram_id" });
-
-      await supabase.from("clients").upsert({
-        phone: phone.trim(),
-        telegram_chat_id: String(tgUser.id),
-        telegram_username: tgUser.username,
-        name: `${tgUser.first_name} ${tgUser.last_name || ""}`.trim(),
-      }, { onConflict: "phone" });
-
-      onLinked(phone.trim());
-    } catch {
-      setError("Ошибка привязки. Попробуйте ещё раз.");
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="bg-surface border-2 border-orange/50 p-8">
-      <h3 className="font-display text-2xl tracking-wider mb-2">ПРИВЯЖИТЕ НОМЕР ТЕЛЕФОНА</h3>
-      <p className="font-mono text-sm text-muted-foreground mb-6">
-        Введите телефон, который использовался при записи в сервис — так мы найдём вашу историю заказов.
-      </p>
-      <div className="flex gap-3">
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => { setPhone(e.target.value); setError(""); }}
-          placeholder="+7 (812) 000-00-00"
-          className="flex-1 bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange"
-        />
-        <button
-          onClick={handleLink}
-          disabled={loading || !phone}
-          className="bg-orange text-primary-foreground px-6 py-3 font-mono text-sm hover:bg-orange-bright transition-colors disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать"}
-        </button>
-      </div>
-      {error && <p className="font-mono text-xs text-destructive mt-2">{error}</p>}
-    </div>
-  );
-}
-
 function NamePrompt({ phone, currentName, onSaved }: {
-  phone: string;
+  phone: string | null;
   currentName: string | null;
   onSaved: (name: string) => void;
 }) {
@@ -835,7 +687,9 @@ function NamePrompt({ phone, currentName, onSaved }: {
       return;
     }
     setSaving(true);
-    await supabase.from("clients").update({ name: trimmed }).eq("phone", phone);
+    if (phone) {
+      await supabase.from("clients").update({ name: trimmed }).eq("phone", phone);
+    }
     setSaving(false);
     onSaved(trimmed);
   };
