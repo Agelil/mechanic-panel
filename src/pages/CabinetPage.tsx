@@ -94,6 +94,18 @@ export default function CabinetPage() {
   const [botUsername, setBotUsername] = useState<string>("s_tochka_bot");
   const [linkingTg, setLinkingTg] = useState(false);
 
+  // Phone editing
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
+
+  // Cars
+  const [cars, setCars] = useState<CustomerCar[]>([]);
+  const [showAddCar, setShowAddCar] = useState(false);
+  const [newCarBrand, setNewCarBrand] = useState("");
+  const [newCarVin, setNewCarVin] = useState("");
+  const [addingCar, setAddingCar] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) {
