@@ -19,6 +19,7 @@ import CabinetPage from "@/pages/CabinetPage";
 import NotFound from "@/pages/NotFound";
 import PrivacyPage from "@/pages/PrivacyPage";
 
+import PortfolioDetailPage from "@/pages/PortfolioDetailPage";
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -94,6 +95,7 @@ const App = () => (
             <Route path="/"          element={<PublicLayout><HomePage /></PublicLayout>} />
             <Route path="/services"  element={<PublicLayout><ServicesPage /></PublicLayout>} />
             <Route path="/portfolio" element={<PublicLayout><PortfolioPage /></PublicLayout>} />
+            <Route path="/portfolio/:id" element={<PublicLayout><PortfolioDetailPage /></PublicLayout>} />
             <Route path="/booking"   element={<PublicLayout><BookingPage /></PublicLayout>} />
             <Route path="/cabinet"   element={<PublicLayout><CabinetPage /></PublicLayout>} />
             <Route path="/privacy"   element={<PublicLayout><PrivacyPage /></PublicLayout>} />
