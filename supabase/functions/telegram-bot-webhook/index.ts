@@ -27,7 +27,7 @@ serve(async (req) => {
     const text = msg.text || '';
     const username = msg.from?.username;
     const firstName = msg.from?.first_name || '';
-    const contact = msg.contact; // shared contact
+    const contact = msg.contact;
 
     const sendMsg = async (replyText: string, replyMarkup?: Record<string, unknown>) => {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -65,10 +65,8 @@ serve(async (req) => {
     if (contact && contact.phone_number) {
       const phone = contact.phone_number.replace(/\s+/g, '').replace(/^8/, '+7');
 
-      // Update telegram_users with verified phone
       await db.from('telegram_users').update({ phone }).eq('chat_id', chatId);
 
-      // Check if this phone exists in clients or appointments
       const { data: client } = await db.from('clients').select('id, name, phone, bonus_points').eq('phone', phone).maybeSingle();
       const { data: appt } = await db.from('appointments')
         .select('*')
@@ -78,7 +76,6 @@ serve(async (req) => {
         .maybeSingle();
 
       if (client || appt) {
-        // Link telegram to client
         await db.from('clients').upsert({
           phone,
           telegram_chat_id: chatId,
@@ -118,12 +115,46 @@ serve(async (req) => {
       ready: '🎉 Готово! Можно забирать', completed: '✅ Завершено', cancelled: '❌ Отменено',
     };
 
-    // Check if user is verified (has phone in telegram_users)
+    // Check if user is verified
     const { data: tgUser } = await db.from('telegram_users').select('phone').eq('chat_id', chatId).maybeSingle();
     const isVerified = !!tgUser?.phone;
 
-    // /start
-    if (text === '/start') {
+    // /start — handle deep link for account linking
+    if (text.startsWith('/start')) {
+      const payload = text.replace('/start', '').trim();
+
+      // Handle link_<user_id> deep link
+      if (payload.startsWith('link_')) {
+        const userId = payload.replace('link_', '');
+        if (userId && userId.length > 10) {
+          // Save telegram_chat_id to profiles and users_registry
+          await db.from('profiles').update({ telegram_chat_id: chatId }).eq('user_id', userId);
+          await db.from('users_registry').update({ telegram_chat_id: chatId }).eq('user_id', userId);
+
+          // Also get phone from users_registry and update clients table
+          const { data: regData } = await db.from('users_registry').select('phone, full_name').eq('user_id', userId).maybeSingle();
+          if (regData?.phone) {
+            await db.from('clients').upsert({
+              phone: regData.phone,
+              telegram_chat_id: chatId,
+              telegram_username: username,
+              name: regData.full_name || firstName,
+            }, { onConflict: 'phone' });
+
+            // Also update telegram_users with phone for bot verification
+            await db.from('telegram_users').update({ phone: regData.phone }).eq('chat_id', chatId);
+          }
+
+          await sendMsg(
+            `✅ <b>Telegram успешно привязан!</b>\n\n` +
+            `Теперь вы будете получать уведомления о статусе ремонта прямо в Telegram.\n\n` +
+            `/status — статус ремонта\n/history — история заказов\n/bonus — бонусные баллы`
+          );
+          return new Response('ok', { headers: corsHeaders });
+        }
+      }
+
+      // Normal /start
       await sendMsg(`👋 Привет, <b>${firstName}</b>!\n\nЯ бот автосервиса <b>Сервис-Точка</b>.\n\n${
         isVerified
           ? '✅ Вы верифицированы.\n\n/status — статус ремонта\n/history — история заказов\n/bonus — бонусные баллы'
@@ -132,7 +163,7 @@ serve(async (req) => {
       return new Response('ok', { headers: corsHeaders });
     }
 
-    // /verify — request phone verification
+    // /verify
     if (text === '/verify') {
       if (isVerified) {
         await sendMsg('✅ Вы уже верифицированы! Используйте /status для проверки статуса ремонта.');
@@ -142,7 +173,7 @@ serve(async (req) => {
       return new Response('ok', { headers: corsHeaders });
     }
 
-    // /status — check repair status (works with or without phone)
+    // /status
     if (text.startsWith('/status')) {
       const phoneArg = text.replace('/status', '').trim();
       const phone = phoneArg || tgUser?.phone;
@@ -172,7 +203,7 @@ serve(async (req) => {
       return new Response('ok', { headers: corsHeaders });
     }
 
-    // /history — full repair history (requires verification)
+    // /history
     if (text === '/history') {
       if (!isVerified) {
         await sendMsg('🔐 Для просмотра истории пройдите верификацию: /verify');
@@ -203,7 +234,7 @@ serve(async (req) => {
       return new Response('ok', { headers: corsHeaders });
     }
 
-    // /bonus — loyalty points (requires verification)
+    // /bonus
     if (text === '/bonus') {
       if (!isVerified) {
         await sendMsg('🔐 Для просмотра бонусов пройдите верификацию: /verify');
