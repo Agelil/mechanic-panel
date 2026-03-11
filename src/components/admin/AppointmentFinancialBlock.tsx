@@ -352,9 +352,9 @@ export default function AppointmentFinancialBlock({
             parts.map((item) => {
               const subtotal = item.qty * item.unit_price;
               return (
-                <div key={item.id} className={`grid grid-cols-[1fr_80px_120px_120px_36px] gap-0 border-b border-border/50 hover:bg-surface/40 transition-colors ${item.from_supply ? "bg-blue-400/5" : ""}`}>
+                <div key={item.id} className={`grid grid-cols-[1fr_80px_120px_120px_36px] gap-0 border-b border-border/50 hover:bg-surface/40 transition-colors ${item.from_supply ? "bg-primary/5" : ""}`}>
                   <div className="px-2 py-1.5 flex items-center gap-1.5">
-                    {item.from_supply && <span className="text-[9px] font-mono text-blue-400 border border-blue-400/30 px-1">СНБ</span>}
+                    {item.from_supply && <span className="text-[9px] font-mono text-accent border border-accent/30 px-1">СНБ</span>}
                     {canEditServices ? (
                       <input
                         value={item.name}
