@@ -3,7 +3,7 @@
  * Encrypts: ФИО, телефон, VIN
  */
 import CryptoJS from "crypto-js";
-import { getEncryptionKey } from "./db-config";
+import { getEncryptionKey, getAllEncryptionKeys } from "./db-config";
 
 const PREFIX = "enc:v1:";
 
@@ -18,22 +18,27 @@ export function encrypt(value: string): string {
   }
 }
 
+/** Placeholder shown when decryption fails (key mismatch) */
+const DECRYPT_FAIL_PLACEHOLDER = "🔒 Зашифровано";
+
 export function decrypt(value: string | null | undefined): string {
   if (!value) return "";
   if (!value.startsWith(PREFIX)) return value; // plain text fallback
-  const key = getEncryptionKey();
-  try {
-    const payload = value.slice(PREFIX.length);
-    const bytes = CryptoJS.AES.decrypt(payload, key);
-    const result = bytes.toString(CryptoJS.enc.Utf8);
-    if (!result) {
-      console.warn("[decrypt] Failed to decrypt, key may be wrong. Key prefix:", key.slice(0, 8), "Value prefix:", value.slice(0, 30));
-    }
-    return result || value;
-  } catch (e) {
-    console.error("[decrypt] Exception:", e, "Key prefix:", key.slice(0, 8));
-    return value;
+  
+  // Try all known keys: current key + hardcoded fallbacks
+  const keys = getAllEncryptionKeys();
+  
+  for (const key of keys) {
+    try {
+      const payload = value.slice(PREFIX.length);
+      const bytes = CryptoJS.AES.decrypt(payload, key);
+      const result = bytes.toString(CryptoJS.enc.Utf8);
+      if (result) return result;
+    } catch { /* try next key */ }
   }
+  
+  // All keys failed — show clean placeholder instead of raw encrypted string
+  return DECRYPT_FAIL_PLACEHOLDER;
 }
 
 /** Encrypt all PII fields in an object */
