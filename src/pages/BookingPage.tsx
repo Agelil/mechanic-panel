@@ -40,6 +40,7 @@ export default function BookingPage() {
   const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoFilled, setAutoFilled] = useState(false);
+  const [isGuest, setIsGuest] = useState(true);
 
   // Load services + categories
   useEffect(() => {
