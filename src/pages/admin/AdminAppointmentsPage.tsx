@@ -129,6 +129,45 @@ export default function AdminAppointmentsPage() {
     }
   };
 
+  const accrueBonus = async (appt: Appointment) => {
+    if (!appt.total_price || appt.total_price <= 0) return;
+    try {
+      // Fetch bonus_percentage from settings
+      const { data: setting } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "bonus_percentage")
+        .maybeSingle();
+      const pct = parseFloat(setting?.value || "0");
+      if (pct <= 0) return;
+
+      const bonusAmount = Math.floor(appt.total_price * pct / 100);
+      if (bonusAmount <= 0) return;
+
+      // Find the client by phone
+      const { data: client } = await supabase
+        .from("clients")
+        .select("id, bonus_points")
+        .eq("phone", appt.phone)
+        .maybeSingle();
+
+      if (!client) return;
+
+      const newBalance = (client.bonus_points || 0) + bonusAmount;
+      await Promise.all([
+        supabase.from("clients").update({ bonus_points: newBalance }).eq("id", client.id),
+        supabase.from("bonus_transactions").insert({
+          client_id: client.id,
+          appointment_id: appt.id,
+          amount: bonusAmount,
+          type: "accrual",
+          description: `Кешбэк ${pct}% от заказа на ${appt.total_price} ₽`,
+        }),
+      ]);
+      toast({ title: `✓ Начислено ${bonusAmount} бонусов`, description: `Кешбэк ${pct}% от суммы заказа` });
+    } catch { /* non-critical */ }
+  };
+
   const updateStatus = async (id: string, status: string) => {
     await supabase.from("appointments").update({ status }).eq("id", id);
     const appt = appointments.find((a) => a.id === id);
@@ -142,6 +181,12 @@ export default function AdminAppointmentsPage() {
       try {
         await upsertClient(updatedAppt);
       } catch { /* non-critical */ }
+      // Accrue bonuses only on "completed" (final status) to avoid double-accrual
+      if (status === "completed") {
+        try {
+          await accrueBonus(updatedAppt);
+        } catch { /* non-critical */ }
+      }
     }
 
     try {
