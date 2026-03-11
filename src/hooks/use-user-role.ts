@@ -29,30 +29,39 @@ export function useUserRole() {
 
   useEffect(() => {
     let mounted = true;
-    const fetchRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        if (mounted) { setRole(null); setLoading(false); }
-        return;
-      }
+
+    const fetchRole = async (userId: string) => {
       const { data } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", session.user.id)
+        .eq("user_id", userId)
         .order("role")
         .limit(1)
         .maybeSingle();
-
       if (mounted) {
         setRole((data?.role as AppRole) || null);
         setLoading(false);
       }
     };
 
-    fetchRole();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      fetchRole();
+    // Получаем сессию один раз при монтировании
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) {
+        if (mounted) { setRole(null); setLoading(false); }
+        return;
+      }
+      fetchRole(session.user.id);
     });
+
+    // Слушаем только реальный логин/логаут
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        fetchRole(session.user.id);
+      } else if (event === "SIGNED_OUT") {
+        if (mounted) { setRole(null); setLoading(false); }
+      }
+    });
+
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
