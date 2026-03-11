@@ -163,7 +163,7 @@ export default function AdminPortfolioPage() {
   };
   const removePart = (i: number) => setForm((prev) => ({ ...prev, parts_list: (prev.parts_list ?? []).filter((_, j) => j !== i) }));
 
-  const FormUI = () => (
+  const formUI = (
     <div className="bg-surface border-2 border-orange p-6 mb-4">
       <h3 className="font-display text-xl tracking-wider mb-5 text-orange">
         {creating ? "Добавить работу" : "Редактировать"}
@@ -336,7 +336,7 @@ export default function AdminPortfolioPage() {
         </button>
       </div>
 
-      {creating && <FormUI />}
+      {creating && formUI}
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-orange animate-spin" /></div>
@@ -344,7 +344,7 @@ export default function AdminPortfolioPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {items.map((item) => (
             <div key={item.id}>
-              {editing === item.id ? <FormUI /> : (
+              {editing === item.id ? formUI : (
                 <div className="bg-surface border-2 border-border hover:border-orange/30 transition-colors overflow-hidden">
                   {(item.image_after_url || item.image_before_url) && (
                     <div className="flex">
