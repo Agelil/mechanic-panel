@@ -472,6 +472,24 @@ export default function AdminAppointmentsPage() {
                         <div>
                           <span className="font-mono text-xs text-muted-foreground block">К оплате</span>
                           <span className="font-mono text-sm text-orange font-bold">{formatPrice(appt.total_price)}</span>
+                          {canViewPrice && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const newPaid = !appt.is_paid;
+                                await supabase.from("appointments").update({ is_paid: newPaid }).eq("id", appt.id);
+                                setAppointments((prev) => prev.map((a) => a.id === appt.id ? { ...a, is_paid: newPaid } : a));
+                                toast({ title: newPaid ? "✓ Отмечено как оплачено" : "Отмечено как неоплачено" });
+                              }}
+                              className={`mt-1 font-mono text-[10px] border px-2 py-0.5 transition-colors ${
+                                appt.is_paid
+                                  ? "text-green-400 border-green-400/30 bg-green-400/10"
+                                  : "text-destructive border-destructive/30 bg-destructive/10 hover:bg-destructive/20"
+                              }`}
+                            >
+                              {appt.is_paid ? "✓ Оплачено" : "Не оплачено"}
+                            </button>
+                          )}
                         </div>
                       ) : null}
                     </div>

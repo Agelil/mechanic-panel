@@ -5,11 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatPrice(amount: number): string {
+export function formatPrice(amount: number | null | undefined): string {
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return '0 руб.';
   return new Intl.NumberFormat('ru-RU', {
     style: 'decimal',
     maximumFractionDigits: 0,
-  }).format(amount) + ' руб.';
+  }).format(num) + ' руб.';
 }
 
 export function formatPriceRange(from: number, to?: number | null): string {
