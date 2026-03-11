@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Car, FileText, Star, Clock, CheckCircle2, Wrench,
   Package, XCircle, Download, LogOut, User, Phone,
-  ChevronRight, Loader2, Shield
+  ChevronRight, Loader2, Shield, Gift
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
