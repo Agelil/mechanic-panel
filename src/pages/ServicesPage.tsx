@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatPriceRange } from "@/lib/utils";
 import { Wrench, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 
 interface Service {
   id: string;
@@ -15,21 +16,11 @@ interface Service {
   sort_order: number;
 }
 
-const FALLBACK_SERVICES: Service[] = [
-  { id: "1", name: "Диагностика двигателя", description: "Компьютерная диагностика всех систем автомобиля. Расшифровка кодов ошибок.", price_from: 800, price_to: 1500, category: "Диагностика", is_active: true, sort_order: 1 },
-  { id: "2", name: "Замена масла и фильтра", description: "Замена моторного масла и масляного фильтра. Рекомендуется каждые 10 000 км.", price_from: 1200, price_to: 3500, category: "ТО", is_active: true, sort_order: 2 },
-  { id: "3", name: "Ремонт тормозной системы", description: "Замена колодок, дисков, суппортов. Прокачка тормозов.", price_from: 2000, price_to: 8000, category: "Тормоза", is_active: true, sort_order: 3 },
-  { id: "4", name: "Замена ремня ГРМ", description: "Полная замена ремня или цепи ГРМ с роликами и помпой.", price_from: 5000, price_to: 15000, category: "Двигатель", is_active: true, sort_order: 4 },
-  { id: "5", name: "Ремонт подвески", description: "Замена стоек, амортизаторов, рычагов, шаровых опор и сайлентблоков.", price_from: 2500, price_to: 12000, category: "Ходовая", is_active: true, sort_order: 5 },
-  { id: "6", name: "Шиномонтаж и балансировка", description: "Сезонная замена шин, балансировка колёс, правка дисков.", price_from: 1500, price_to: 3000, category: "Шиномонтаж", is_active: true, sort_order: 6 },
-  { id: "7", name: "Ремонт электрики", description: "Поиск и устранение неисправностей в электрической цепи автомобиля.", price_from: 1000, price_to: 10000, category: "Электрика", is_active: true, sort_order: 7 },
-  { id: "8", name: "Кузовные работы", description: "Рихтовка, сварочные работы, антикоррозийная обработка.", price_from: 3000, price_to: 50000, category: "Кузов", is_active: true, sort_order: 8 },
-];
-
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("Все");
+  const { settings } = useSiteSettings();
 
   useEffect(() => {
     async function fetchServices() {
@@ -38,13 +29,15 @@ export default function ServicesPage() {
         .select("*")
         .eq("is_active", true)
         .order("sort_order");
-      setServices(error || !data?.length ? FALLBACK_SERVICES : data);
+      if (!error && data?.length) {
+        setServices(data);
+      }
       setLoading(false);
     }
     fetchServices();
   }, []);
 
-  const categories = ["Все", ...Array.from(new Set(services.map((s) => s.category).filter(Boolean)))];
+  const categories = ["Все", ...Array.from(new Set(services.map((s) => s.category).filter(Boolean))) as string[]];
   const filtered = activeCategory === "Все" ? services : services.filter((s) => s.category === activeCategory);
 
   return (
@@ -53,36 +46,38 @@ export default function ServicesPage() {
       <section className="relative bg-surface border-b-2 border-border py-16 bg-grid">
         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange" />
         <div className="container mx-auto px-4">
-          <span className="font-mono text-xs text-orange uppercase tracking-widest">// Прайс-лист 2024</span>
+          <span className="font-mono text-xs text-orange uppercase tracking-widest">// Прайс-лист</span>
           <h1 className="font-display text-6xl md:text-8xl tracking-wider mt-2">
             НАШИ <span className="text-orange">УСЛУГИ</span>
           </h1>
           <p className="font-mono text-sm text-muted-foreground mt-4 max-w-xl">
-            Актуальные цены на ремонт и обслуживание автомобилей в Санкт-Петербурге. Финальная стоимость определяется после диагностики.
+            Актуальные цены на ремонт и обслуживание автомобилей. Финальная стоимость определяется после диагностики.
           </p>
         </div>
       </section>
 
       {/* Filter */}
-      <section className="bg-background border-b-2 border-border sticky top-16 z-30">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-0 overflow-x-auto">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-5 py-3 font-mono text-xs uppercase tracking-widest border-r border-border whitespace-nowrap transition-colors ${
-                  activeCategory === cat
-                    ? "bg-orange text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+      {categories.length > 1 && (
+        <section className="bg-background border-b-2 border-border sticky top-16 z-30">
+          <div className="container mx-auto px-4">
+            <div className="flex gap-0 overflow-x-auto">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-5 py-3 font-mono text-xs uppercase tracking-widest border-r border-border whitespace-nowrap transition-colors ${
+                    activeCategory === cat
+                      ? "bg-orange text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Services Grid */}
       <section className="py-16">
@@ -90,6 +85,12 @@ export default function ServicesPage() {
           {loading ? (
             <div className="flex justify-center py-20">
               <Loader2 className="w-8 h-8 text-orange animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-20">
+              <Wrench className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+              <p className="font-mono text-sm text-muted-foreground">Услуги ещё не добавлены</p>
+              <p className="font-mono text-xs text-muted-foreground/60 mt-1">Добавьте услуги в панели администратора</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border">
@@ -118,12 +119,14 @@ export default function ServicesPage() {
                         <span className="font-display text-xl text-orange tracking-wide">
                           {formatPriceRange(service.price_from, service.price_to)}
                         </span>
-                        <Link
-                          to="/booking"
-                          className="font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-orange transition-colors border border-border px-3 py-1.5 hover:border-orange"
-                        >
-                          Записаться →
-                        </Link>
+                        {settings.module_booking && (
+                          <Link
+                            to="/booking"
+                            className="font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-orange transition-colors border border-border px-3 py-1.5 hover:border-orange"
+                          >
+                            Записаться →
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -139,7 +142,7 @@ export default function ServicesPage() {
         <div className="container mx-auto px-4">
           <div className="bg-surface border-2 border-orange/20 p-6 max-w-2xl">
             <p className="font-mono text-xs text-muted-foreground leading-relaxed">
-              <span className="text-orange font-bold">Внимание:</span> Указанные цены являются ориентировочными для Санкт-Петербурга. Точная стоимость рассчитывается индивидуально после диагностики автомобиля. Все работы сопровождаются гарантией.
+              <span className="text-orange font-bold">Внимание:</span> Указанные цены являются ориентировочными. Точная стоимость рассчитывается индивидуально после диагностики автомобиля. Все работы сопровождаются гарантией.
             </p>
           </div>
         </div>
