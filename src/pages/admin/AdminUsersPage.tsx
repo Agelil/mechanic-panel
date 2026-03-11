@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Loader2, UserCog, Trash2, AlertCircle, RefreshCw, Crown, Pencil, X, AlertTriangle
+  Loader2, UserCog, Trash2, AlertCircle, RefreshCw, Crown, Pencil, X, AlertTriangle, Users
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,11 +24,32 @@ interface UserRow {
   created_at: string;
 }
 
+interface UserGroup {
+  id: string;
+  name: string;
+}
+
+interface GroupMembership {
+  id: string;
+  user_id: string;
+  group_id: string;
+}
+
 const ROLE_LABELS: Record<AppRole, { label: string; color: string; desc: string }> = {
   admin:   { label: "Администратор", color: "text-orange border-orange/30 bg-orange/10", desc: "Полный доступ ко всем разделам" },
   manager: { label: "Менеджер",      color: "text-blue-400 border-blue-400/30 bg-blue-400/10", desc: "Услуги, портфолио, акции" },
   master:  { label: "Мастер",        color: "text-green-400 border-green-400/30 bg-green-400/10", desc: "Просмотр и изменение статусов заявок" },
 };
+
+// Generate distinct colors for dynamic groups
+const GROUP_COLORS = [
+  "text-purple-400 border-purple-400/30 bg-purple-400/10",
+  "text-cyan-400 border-cyan-400/30 bg-cyan-400/10",
+  "text-yellow-400 border-yellow-400/30 bg-yellow-400/10",
+  "text-pink-400 border-pink-400/30 bg-pink-400/10",
+  "text-teal-400 border-teal-400/30 bg-teal-400/10",
+  "text-indigo-400 border-indigo-400/30 bg-indigo-400/10",
+];
 
 const NAME_REGEX = /^\S+\s+\S+/;
 
@@ -36,6 +57,8 @@ export default function AdminUsersPage() {
   const { toast } = useToast();
   const { user: currentUser, isOwner } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [groups, setGroups] = useState<UserGroup[]>([]);
+  const [memberships, setMemberships] = useState<GroupMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -44,26 +67,52 @@ export default function AdminUsersPage() {
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editRole, setEditRole] = useState<AppRole>("master");
+  const [editGroupId, setEditGroupId] = useState<string>("none");
   const [editError, setEditError] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
+  // Single load function for all data
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("users_registry" as any)
-      .select("*")
-      .eq("is_approved", true)
-      .not("role", "is", null)
-      .in("role", ["admin", "manager", "master"])
-      .order("created_at", { ascending: false });
+    const [usersRes, groupsRes, membersRes] = await Promise.all([
+      supabase
+        .from("users_registry" as any)
+        .select("*")
+        .eq("is_approved", true)
+        .not("role", "is", null)
+        .in("role", ["admin", "manager", "master"])
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("user_groups")
+        .select("id, name")
+        .order("name"),
+      supabase
+        .from("user_group_members")
+        .select("id, user_id, group_id"),
+    ]);
 
-    if (!error && data) {
-      setUsers(data as unknown as UserRow[]);
-    }
+    if (usersRes.data) setUsers(usersRes.data as unknown as UserRow[]);
+    if (groupsRes.data) setGroups(groupsRes.data);
+    if (membersRes.data) setMemberships(membersRes.data as GroupMembership[]);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Helper: get user's group
+  const getUserGroup = useCallback((userId: string | null): UserGroup | null => {
+    if (!userId) return null;
+    const membership = memberships.find((m) => m.user_id === userId);
+    if (!membership) return null;
+    return groups.find((g) => g.id === membership.group_id) || null;
+  }, [memberships, groups]);
+
+  // Group color by index
+  const groupColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    groups.forEach((g, i) => { map[g.id] = GROUP_COLORS[i % GROUP_COLORS.length]; });
+    return map;
+  }, [groups]);
 
   const handleRoleChange = async (user: UserRow, newRole: AppRole) => {
     setSaving(user.id);
@@ -88,11 +137,37 @@ export default function AdminUsersPage() {
     setSaving(null);
   };
 
+  const handleGroupChange = async (user: UserRow, groupId: string) => {
+    if (!user.user_id) return;
+    setSaving(user.id);
+    try {
+      // Remove existing memberships
+      await supabase.from("user_group_members").delete().eq("user_id", user.user_id);
+
+      // Add new membership if not "none"
+      if (groupId !== "none") {
+        const { error } = await supabase.from("user_group_members").insert({
+          user_id: user.user_id,
+          group_id: groupId,
+        });
+        if (error) throw error;
+      }
+
+      toast({ title: "Группа обновлена" });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Ошибка", description: e.message, variant: "destructive" });
+    }
+    setSaving(null);
+  };
+
   const openEdit = (user: UserRow) => {
     setEditUser(user);
     setEditName(user.full_name || user.display_name || "");
     setEditPhone(user.phone || "");
     setEditRole((user.role as AppRole) || "master");
+    const userGroup = getUserGroup(user.user_id);
+    setEditGroupId(userGroup?.id || "none");
     setEditError("");
   };
 
@@ -126,9 +201,17 @@ export default function AdminUsersPage() {
         await supabase
           .from("user_roles")
           .upsert({ user_id: editUser.user_id, role: editRole } as any, { onConflict: "user_id" });
+
+        // Update group membership
+        await supabase.from("user_group_members").delete().eq("user_id", editUser.user_id);
+        if (editGroupId !== "none") {
+          await supabase.from("user_group_members").insert({
+            user_id: editUser.user_id,
+            group_id: editGroupId,
+          });
+        }
       }
 
-      // Phone change warning handled in UI
       toast({ title: "Сотрудник обновлён" });
       setEditUser(null);
       await load();
@@ -147,15 +230,13 @@ export default function AdminUsersPage() {
 
     setSaving(user.id);
     try {
-      // Remove role
       if (user.user_id) {
+        await supabase.from("user_group_members").delete().eq("user_id", user.user_id);
         await supabase.from("user_roles").delete().eq("user_id", user.user_id);
         await supabase.from("profiles").update({ is_approved: false, is_blocked: true }).eq("user_id", user.user_id);
       }
-      // Remove from registry
       await supabase.from("users_registry" as any).delete().eq("id", user.id);
 
-      // Audit
       const { data: { session } } = await supabase.auth.getSession();
       await supabase.from("security_audit_log").insert({
         user_id: session?.user?.id,
@@ -179,7 +260,7 @@ export default function AdminUsersPage() {
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="font-display text-4xl tracking-wider">СОТРУДНИКИ</h1>
-          <p className="font-mono text-sm text-muted-foreground">Управление ролями и данными сотрудников</p>
+          <p className="font-mono text-sm text-muted-foreground">Управление ролями, группами и данными сотрудников</p>
         </div>
         <button
           onClick={load}
@@ -192,7 +273,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Role legend */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         {(Object.entries(ROLE_LABELS) as [AppRole, typeof ROLE_LABELS[AppRole]][]).map(([role, info]) => (
           <div key={role} className="bg-surface border-2 border-border p-4">
             <span className={`font-mono text-xs border px-2 py-0.5 ${info.color}`}>{info.label}</span>
@@ -200,6 +281,22 @@ export default function AdminUsersPage() {
           </div>
         ))}
       </div>
+
+      {/* Groups legend */}
+      {groups.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-8">
+          <span className="font-mono text-xs text-muted-foreground self-center mr-1">Группы:</span>
+          {groups.map((g) => {
+            const color = groupColorMap[g.id];
+            const count = memberships.filter((m) => m.group_id === g.id).length;
+            return (
+              <span key={g.id} className={`font-mono text-xs border px-2 py-0.5 ${color}`}>
+                {g.name} ({count})
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -209,6 +306,7 @@ export default function AdminUsersPage() {
         <div className="space-y-px bg-border mb-8">
           {users.map((user) => {
             const roleInfo = user.role ? ROLE_LABELS[user.role as AppRole] : null;
+            const userGroup = getUserGroup(user.user_id);
             const isCurrentUser = user.user_id === currentUser?.id;
             return (
               <div key={user.id} className={`bg-background p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-surface transition-colors ${isCurrentUser ? "border-l-2 border-orange" : ""}`}>
@@ -227,35 +325,64 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* System role badge */}
                   {roleInfo && (
                     <span className={`font-mono text-xs border px-2 py-0.5 ${roleInfo.color}`}>{roleInfo.label}</span>
                   )}
 
+                  {/* Group badge */}
+                  {userGroup && (
+                    <span className={`font-mono text-xs border px-2 py-0.5 flex items-center gap-1 ${groupColorMap[userGroup.id]}`}>
+                      <Users className="w-3 h-3" />
+                      {userGroup.name}
+                    </span>
+                  )}
+
                   {isOwner && (
-                    <Select
-                      value={user.role || "none"}
-                      onValueChange={(val) => {
-                        if (val !== "none") handleRoleChange(user, val as AppRole);
-                      }}
-                      disabled={saving === user.id}
-                    >
-                      <SelectTrigger className="w-40 bg-background border-2 border-border font-mono text-xs rounded-none h-9">
-                        {saving === user.id ? (
-                          <div className="flex items-center gap-1.5">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>...</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Роль" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" className="font-mono text-xs">— Без роли</SelectItem>
-                        <SelectItem value="admin" className="font-mono text-xs">Администратор</SelectItem>
-                        <SelectItem value="manager" className="font-mono text-xs">Менеджер</SelectItem>
-                        <SelectItem value="master" className="font-mono text-xs">Мастер</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <>
+                      {/* Role select */}
+                      <Select
+                        value={user.role || "none"}
+                        onValueChange={(val) => {
+                          if (val !== "none") handleRoleChange(user, val as AppRole);
+                        }}
+                        disabled={saving === user.id}
+                      >
+                        <SelectTrigger className="w-36 bg-background border-2 border-border font-mono text-xs rounded-none h-9">
+                          {saving === user.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>...</span>
+                            </div>
+                          ) : (
+                            <SelectValue placeholder="Роль" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="font-mono text-xs">— Без роли</SelectItem>
+                          <SelectItem value="admin" className="font-mono text-xs">Администратор</SelectItem>
+                          <SelectItem value="manager" className="font-mono text-xs">Менеджер</SelectItem>
+                          <SelectItem value="master" className="font-mono text-xs">Мастер</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* Group select */}
+                      <Select
+                        value={getUserGroup(user.user_id)?.id || "none"}
+                        onValueChange={(val) => handleGroupChange(user, val)}
+                        disabled={saving === user.id || !user.user_id}
+                      >
+                        <SelectTrigger className="w-40 bg-background border-2 border-border font-mono text-xs rounded-none h-9">
+                          <SelectValue placeholder="Группа" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="font-mono text-xs">— Без группы</SelectItem>
+                          {groups.map((g) => (
+                            <SelectItem key={g.id} value={g.id} className="font-mono text-xs">{g.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
                   )}
 
                   {/* Edit button */}
@@ -341,19 +468,35 @@ export default function AdminUsersPage() {
                 )}
               </div>
               {isOwner && (
-                <div>
-                  <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Роль</label>
-                  <Select value={editRole} onValueChange={(v) => setEditRole(v as AppRole)}>
-                    <SelectTrigger className="w-full bg-background border-2 border-border font-mono text-sm rounded-none h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="master" className="font-mono text-sm">Мастер</SelectItem>
-                      <SelectItem value="manager" className="font-mono text-sm">Менеджер</SelectItem>
-                      <SelectItem value="admin" className="font-mono text-sm">Администратор</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div>
+                    <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Системная роль</label>
+                    <Select value={editRole} onValueChange={(v) => setEditRole(v as AppRole)}>
+                      <SelectTrigger className="w-full bg-background border-2 border-border font-mono text-sm rounded-none h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="master" className="font-mono text-sm">Мастер</SelectItem>
+                        <SelectItem value="manager" className="font-mono text-sm">Менеджер</SelectItem>
+                        <SelectItem value="admin" className="font-mono text-sm">Администратор</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Группа</label>
+                    <Select value={editGroupId} onValueChange={setEditGroupId}>
+                      <SelectTrigger className="w-full bg-background border-2 border-border font-mono text-sm rounded-none h-11">
+                        <SelectValue placeholder="Без группы" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" className="font-mono text-sm">— Без группы</SelectItem>
+                        {groups.map((g) => (
+                          <SelectItem key={g.id} value={g.id} className="font-mono text-sm">{g.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               {editError && (
