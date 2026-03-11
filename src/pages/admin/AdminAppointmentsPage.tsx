@@ -1,9 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Clock, CheckCircle2, Wrench, XCircle, ChevronDown, Package, Bell, Upload, Trash2, Image, Eye } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { decryptPII } from "@/lib/encryption";
+import { usePermission } from "@/hooks/use-permission";
+import AppointmentFinancialBlock, { type WorkItem } from "@/components/admin/AppointmentFinancialBlock";
 
 interface ServiceItem {
   id: string;
@@ -18,14 +20,26 @@ interface Appointment {
   phone: string;
   car_make: string;
   car_vin: string | null;
+  license_plate: string | null;
   service_type: string;
   services: ServiceItem[] | null;
+  work_items: WorkItem[];
+  parts_cost: number;
+  services_cost: number;
   total_price: number | null;
   message: string | null;
   photos: string[] | null;
   status: string;
   client_notified: boolean;
   created_at: string;
+}
+
+interface SupplyOrder {
+  id: string;
+  item_name: string;
+  quantity: number;
+  appointment_id: string | null;
+  status: string;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -42,7 +56,11 @@ const NOTIFY_STATUSES = ["parts_arrived", "ready", "completed"];
 
 export default function AdminAppointmentsPage() {
   const { toast } = useToast();
+  const canViewPrice = usePermission("view_appointment_price");
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [supplyOrders, setSupplyOrders] = useState<SupplyOrder[]>([]);
+  const [catalogServices, setCatalogServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -51,10 +69,24 @@ export default function AdminAppointmentsPage() {
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase.from("appointments").select("*").order("created_at", { ascending: false });
-    // Decrypt PII fields (ФЗ-152) before display
-    const decrypted = ((data as unknown as Appointment[]) || []).map((a) => decryptPII(a));
+    const [{ data: appts }, { data: supply }, { data: services }] = await Promise.all([
+      supabase.from("appointments").select("*").order("created_at", { ascending: false }),
+      supabase.from("supply_orders").select("id, item_name, quantity, appointment_id, status"),
+      supabase.from("services").select("id, name, price_from").eq("is_active", true).order("name"),
+    ]);
+
+    const decrypted = ((appts as unknown as Appointment[]) || []).map((a) => {
+      const dec = decryptPII(a) as Appointment;
+      return {
+        ...dec,
+        work_items: Array.isArray(dec.work_items) ? dec.work_items as WorkItem[] : [],
+        parts_cost: dec.parts_cost ?? 0,
+        services_cost: dec.services_cost ?? 0,
+      };
+    });
     setAppointments(decrypted);
+    setSupplyOrders((supply as SupplyOrder[]) || []);
+    setCatalogServices((services as ServiceItem[]) || []);
     setLoading(false);
   };
 
@@ -68,7 +100,6 @@ export default function AdminAppointmentsPage() {
 
     if (!updatedAppt) return;
 
-    // Trigger Telegram notification
     try {
       await supabase.functions.invoke("send-telegram-notification", {
         body: { type: "status_changed", appointment_id: id, new_status: status, appointment: updatedAppt },
@@ -78,7 +109,6 @@ export default function AdminAppointmentsPage() {
       }
     } catch { /* non-critical */ }
 
-    // Sync to Google Sheets
     try {
       await supabase.functions.invoke("sync-google-sheets", {
         body: { type: "updated", appointment: updatedAppt },
@@ -113,9 +143,26 @@ export default function AdminAppointmentsPage() {
     setAppointments((prev) => prev.map((a) => a.id === id ? { ...a, photos: newPhotos } : a));
   };
 
-  const filtered = statusFilter === "all"
-    ? appointments
-    : appointments.filter((a) => a.status === statusFilter);
+  const handleFinancialChange = (
+    id: string,
+    items: WorkItem[],
+    partsCost: number,
+    servicesCost: number,
+    total: number
+  ) => {
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, work_items: items, parts_cost: partsCost, services_cost: servicesCost, total_price: total || null }
+          : a
+      )
+    );
+  };
+
+  const filtered = useMemo(
+    () => statusFilter === "all" ? appointments : appointments.filter((a) => a.status === statusFilter),
+    [appointments, statusFilter]
+  );
 
   const counts: Record<string, number> = { all: appointments.length };
   Object.keys(STATUS_CONFIG).forEach((s) => {
@@ -163,6 +210,7 @@ export default function AdminAppointmentsPage() {
             const isExpanded = expanded === appt.id;
             const services = Array.isArray(appt.services) ? appt.services as ServiceItem[] : [];
             const photos = Array.isArray(appt.photos) ? appt.photos as string[] : [];
+            const apptSupply = supplyOrders.filter((s) => s.appointment_id === appt.id);
 
             return (
               <div key={appt.id} className={`bg-surface border-2 transition-colors ${isExpanded ? "border-orange/50" : "border-border hover:border-orange/20"}`}>
@@ -174,7 +222,7 @@ export default function AdminAppointmentsPage() {
                         <Icon className="w-3 h-3" />{cfg.label}
                       </span>
                       {appt.client_notified && (
-                        <span className="inline-flex items-center gap-1 font-mono text-xs border px-2 py-1" style={{color: 'hsl(142 76% 60%)', borderColor: 'hsl(142 76% 60% / 0.3)'}}>
+                        <span className="inline-flex items-center gap-1 font-mono text-xs border px-2 py-1 text-foreground border-border">
                           <Bell className="w-3 h-3" />Клиент оповещён
                         </span>
                       )}
@@ -199,13 +247,29 @@ export default function AdminAppointmentsPage() {
                           <span className="font-mono text-xs uppercase tracking-widest">{appt.car_vin}</span>
                         </div>
                       )}
-                      {appt.total_price && (
+                      {canViewPrice && appt.total_price ? (
                         <div>
-                          <span className="font-mono text-xs text-muted-foreground block">Стоимость</span>
-                          <span className="font-mono text-sm text-orange">от {formatPrice(appt.total_price)}</span>
+                          <span className="font-mono text-xs text-muted-foreground block">К оплате</span>
+                          <span className="font-mono text-sm text-orange font-bold">{formatPrice(appt.total_price)}</span>
                         </div>
-                      )}
+                      ) : null}
                     </div>
+
+                    {/* Quick financial summary if has data */}
+                    {canViewPrice && (appt.parts_cost > 0 || appt.services_cost > 0) && (
+                      <div className="flex gap-4 mt-2">
+                        {appt.services_cost > 0 && (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            Работы: <span className="text-foreground">{formatPrice(appt.services_cost)}</span>
+                          </span>
+                        )}
+                        {appt.parts_cost > 0 && (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            Запчасти: <span className="text-foreground">{formatPrice(appt.parts_cost)}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -230,26 +294,36 @@ export default function AdminAppointmentsPage() {
                 {/* Expanded details */}
                 {isExpanded && (
                   <div className="border-t-2 border-border p-5 space-y-5">
-                    {/* Services list */}
-                    {services.length > 0 && (
+                    {/* Legacy services from booking form */}
+                    {services.length > 0 && appt.work_items.length === 0 && (
                       <div>
-                        <p className="font-mono text-xs text-orange uppercase tracking-widest mb-3">Список услуг</p>
+                        <p className="font-mono text-xs text-orange uppercase tracking-widest mb-3">Услуги из заявки</p>
                         <div className="bg-background border border-border">
                           {services.map((s, i) => (
                             <div key={i} className="flex justify-between items-center px-4 py-2.5 border-b border-border last:border-0">
                               <span className="font-mono text-sm">{s.name}</span>
-                              <span className="font-mono text-sm text-orange">{formatPrice(s.price_from)}{s.price_to ? ` — ${formatPrice(s.price_to)}` : ""}</span>
+                              {canViewPrice && (
+                                <span className="font-mono text-sm text-orange">{formatPrice(s.price_from)}{s.price_to ? ` — ${formatPrice(s.price_to)}` : ""}</span>
+                              )}
                             </div>
                           ))}
-                          {appt.total_price && (
-                            <div className="flex justify-between items-center px-4 py-2.5 bg-orange/10 border-t-2 border-orange/30">
-                              <span className="font-display text-lg tracking-wider">ИТОГО (ПРЕДВ.)</span>
-                              <span className="font-display text-lg text-orange">от {formatPrice(appt.total_price)}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
+
+                    {/* Financial block */}
+                    <AppointmentFinancialBlock
+                      appointmentId={appt.id}
+                      workItems={appt.work_items}
+                      partsCost={appt.parts_cost}
+                      servicesCost={appt.services_cost}
+                      totalPrice={appt.total_price}
+                      supplyOrders={apptSupply}
+                      catalogServices={catalogServices}
+                      onChange={(items, partsCost, servicesCost, total) =>
+                        handleFinancialChange(appt.id, items, partsCost, servicesCost, total)
+                      }
+                    />
 
                     {/* Comment */}
                     {appt.message && (
