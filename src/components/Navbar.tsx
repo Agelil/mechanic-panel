@@ -2,18 +2,22 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { href: "/", label: "Главная" },
-  { href: "/services", label: "Услуги" },
-  { href: "/portfolio", label: "Наши работы" },
-  { href: "/booking", label: "Записаться" },
-  { href: "/cabinet", label: "Кабинет" },
-];
+import { useSiteSettings } from "@/hooks/use-site-settings";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { settings } = useSiteSettings();
+
+  const navItems = [
+    { href: "/", label: "Главная" },
+    { href: "/services", label: "Услуги" },
+    ...(settings.module_portfolio ? [{ href: "/portfolio", label: "Наши работы" }] : []),
+    ...(settings.module_booking ? [{ href: "/booking", label: "Записаться" }] : []),
+    ...(settings.module_cabinet ? [{ href: "/cabinet", label: "Кабинет" }] : []),
+  ];
+
+  const siteName = settings.site_name.toUpperCase();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b-2 border-border">
@@ -24,7 +28,12 @@ export function Navbar() {
             <Wrench className="w-5 h-5 text-primary-foreground" />
           </div>
           <span className="font-display text-2xl tracking-widest">
-            СЕРВИС<span className="text-orange">-</span>ТОЧКА
+            {siteName.includes("-")
+              ? siteName.split("-").map((part, i, arr) => (
+                  <span key={i}>{part}{i < arr.length - 1 ? <span className="text-orange">-</span> : ""}</span>
+                ))
+              : <>{siteName}</>
+            }
           </span>
         </Link>
 
@@ -45,12 +54,14 @@ export function Navbar() {
               {item.label}
             </Link>
           ))}
-          <Link
-            to="/booking"
-            className="ml-4 px-5 py-2 bg-orange text-primary-foreground font-mono text-sm font-bold uppercase tracking-wider hover:bg-orange-bright transition-colors shadow-brutal-sm"
-          >
-            Записаться →
-          </Link>
+          {settings.module_booking && (
+            <Link
+              to="/booking"
+              className="ml-4 px-5 py-2 bg-orange text-primary-foreground font-mono text-sm font-bold uppercase tracking-wider hover:bg-orange-bright transition-colors shadow-brutal-sm"
+            >
+              Записаться →
+            </Link>
+          )}
         </div>
 
         {/* Mobile Toggle */}
