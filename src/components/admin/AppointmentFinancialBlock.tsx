@@ -495,6 +495,8 @@ export default function AppointmentFinancialBlock({
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* ── Grand Total ── */}
       {canViewPrice && (
