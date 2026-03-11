@@ -326,22 +326,20 @@ export default function AdminGroupsPage() {
                             </div>
                             <div className="divide-y divide-border">
                               {items.map(({ key, label }) => (
-                                <label key={key} className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-surface transition-colors">
+                                <div
+                                  key={key}
+                                  onClick={() => updatePermission(group.id, key as keyof GroupPermissions, !group.permissions[key as keyof GroupPermissions])}
+                                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-surface transition-colors select-none"
+                                >
                                   <span className="font-mono text-sm">{label}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => updatePermission(group.id, key as keyof GroupPermissions, !group.permissions[key as keyof GroupPermissions])}
-                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                                      group.permissions[key as keyof GroupPermissions]
-                                        ? "bg-orange"
-                                        : "bg-border"
-                                    }`}
-                                  >
+                                  <div className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                    group.permissions[key as keyof GroupPermissions] ? "bg-orange" : "bg-border"
+                                  }`}>
                                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-foreground transition-transform ${
                                       group.permissions[key as keyof GroupPermissions] ? "translate-x-5" : "translate-x-0.5"
                                     }`} />
-                                  </button>
-                                </label>
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>
