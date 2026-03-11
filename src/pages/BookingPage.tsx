@@ -269,6 +269,49 @@ export default function BookingPage() {
         </div>
       </section>
 
+      {/* Marketing block for guests */}
+      {isGuest && (
+        <section className="py-8 border-b-2 border-border">
+          <div className="container mx-auto px-4">
+            <div className="max-w-5xl mx-auto bg-orange/5 border-2 border-orange/30 p-6">
+              <h3 className="font-display text-2xl tracking-wider mb-4">
+                ЗАРЕГИСТРИРУЙТЕСЬ <span className="text-orange">И ПОЛУЧИТЕ БОЛЬШЕ</span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                <div className="flex items-start gap-3">
+                  <Gift className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-mono text-sm font-bold">Бонусы</p>
+                    <p className="font-mono text-xs text-muted-foreground">Возвращаем % с каждого ремонта на ваш счёт</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Bot className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-mono text-sm font-bold">Удобство</p>
+                    <p className="font-mono text-xs text-muted-foreground">Отслеживание статуса авто в Telegram</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <FolderOpen className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-mono text-sm font-bold">История</p>
+                    <p className="font-mono text-xs text-muted-foreground">Электронная сервисная книжка со всеми заказ-нарядами</p>
+                  </div>
+                </div>
+              </div>
+              <Link
+                to="/admin/login"
+                className="inline-flex items-center gap-2 bg-orange text-primary-foreground px-5 py-2.5 font-mono text-sm hover:bg-orange-bright transition-colors shadow-brutal-sm"
+              >
+                <UserPlus className="w-4 h-4" />
+                Зарегистрироваться
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="py-16">
         <div className="container mx-auto px-4">
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
