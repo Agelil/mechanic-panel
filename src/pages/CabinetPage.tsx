@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom";
 import {
   Car, FileText, Star, Clock, CheckCircle2, Wrench,
   Package, XCircle, Download, LogOut, User, Phone,
-  ChevronRight, Loader2, Shield, Gift
+  ChevronRight, Loader2, Shield, Gift, TrendingUp
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
 interface TelegramUser {
   id: number;
@@ -26,6 +27,12 @@ interface AppointmentDoc {
   created_at: string;
 }
 
+interface WorkItem {
+  name: string;
+  price: number;
+  type: "part" | "service";
+}
+
 interface AppointmentItem {
   id: string;
   car_make: string;
@@ -34,26 +41,29 @@ interface AppointmentItem {
   status: string;
   created_at: string;
   total_price: number | null;
+  parts_cost: number;
+  services_cost: number;
+  work_items: WorkItem[];
   services: { name: string; price_from: number }[] | null;
   documents?: AppointmentDoc[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType; step: number }> = {
-  new: { label: "Принята", color: "text-orange", icon: Clock, step: 1 },
-  processing: { label: "В работе", color: "text-blue-400", icon: Wrench, step: 2 },
-  parts_ordered: { label: "Запчасти заказаны", color: "text-yellow-400", icon: Package, step: 3 },
-  parts_arrived: { label: "Запчасти прибыли", color: "text-purple-400", icon: Package, step: 4 },
-  ready: { label: "Готово!", color: "text-green-400", icon: CheckCircle2, step: 5 },
-  completed: { label: "Завершено", color: "text-muted-foreground", icon: CheckCircle2, step: 6 },
-  cancelled: { label: "Отменена", color: "text-destructive", icon: XCircle, step: 0 },
+  new:            { label: "Принята",             color: "text-orange",           icon: Clock,        step: 1 },
+  processing:     { label: "В работе",            color: "text-blue-400",         icon: Wrench,       step: 2 },
+  parts_ordered:  { label: "Запчасти заказаны",   color: "text-yellow-400",       icon: Package,      step: 3 },
+  parts_arrived:  { label: "Запчасти прибыли",    color: "text-purple-400",       icon: Package,      step: 4 },
+  ready:          { label: "Готово к выдаче!",     color: "text-green-400",        icon: CheckCircle2, step: 5 },
+  completed:      { label: "Завершено",           color: "text-muted-foreground", icon: CheckCircle2, step: 6 },
+  cancelled:      { label: "Отменена",            color: "text-destructive",      icon: XCircle,      step: 0 },
 };
 
 const TIMELINE_STEPS = [
-  { key: "new", label: "Принята" },
-  { key: "processing", label: "В работе" },
+  { key: "new",           label: "Принята" },
+  { key: "processing",    label: "В работе" },
   { key: "parts_ordered", label: "Запчасти" },
-  { key: "ready", label: "Готово" },
-  { key: "completed", label: "Завершено" },
+  { key: "ready",         label: "Готово" },
+  { key: "completed",     label: "Завершено" },
 ];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -62,25 +72,26 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   completion_act: "Акт выполненных работ",
 };
 
+const TERMINAL = ["completed", "cancelled"];
+
 export default function CabinetPage() {
   const navigate = useNavigate();
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [bonusPoints, setBonusPoints] = useState<number>(0);
+  const [bonusPct, setBonusPct] = useState<number>(0);
   const [maxBonusPct, setMaxBonusPct] = useState<number>(30);
   const [useBonuses, setUseBonuses] = useState(false);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
 
-  // Check for saved session
   useEffect(() => {
     const saved = localStorage.getItem("tg_cabinet_user");
     if (saved) {
       try {
         const user = JSON.parse(saved) as TelegramUser;
-        // Check auth_date is not too old (24h)
         const now = Math.floor(Date.now() / 1000);
         if (now - user.auth_date < 86400) {
           setTgUser(user);
@@ -92,18 +103,13 @@ export default function CabinetPage() {
     }
   }, []);
 
-  // Inject Telegram Login Widget
   useEffect(() => {
     if (tgUser || !widgetRef.current) return;
-
-    // Define callback for widget
     (window as unknown as Record<string, unknown>).onTelegramAuth = (user: TelegramUser) => {
       localStorage.setItem("tg_cabinet_user", JSON.stringify(user));
       setTgUser(user);
       loadClientData(user);
     };
-
-    // Get bot name from settings
     supabase.from("settings").select("value").eq("key", "telegram_bot_username").maybeSingle().then(({ data }) => {
       const botName = data?.value || "ServiceTochkaBot";
       const script = document.createElement("script");
@@ -130,23 +136,25 @@ export default function CabinetPage() {
       const clientPhone = tgSession?.phone || phone;
       if (clientPhone) setPhone(clientPhone);
 
-      // Load bonus settings
+      // Load settings
       const { data: settings } = await supabase
         .from("settings")
         .select("key, value")
-        .in("key", ["max_bonus_payment_percentage"]);
+        .in("key", ["max_bonus_payment_percentage", "bonus_percentage"]);
       if (settings) {
-        const maxPct = settings.find((s) => s.key === "max_bonus_payment_percentage");
-        if (maxPct?.value) setMaxBonusPct(parseFloat(maxPct.value) || 30);
+        const maxPctSetting = settings.find((s) => s.key === "max_bonus_payment_percentage");
+        if (maxPctSetting?.value) setMaxBonusPct(parseFloat(maxPctSetting.value) || 30);
+        const bonusPctSetting = settings.find((s) => s.key === "bonus_percentage");
+        if (bonusPctSetting?.value) setBonusPct(parseFloat(bonusPctSetting.value) || 0);
       }
 
       if (clientPhone) {
         const { data: appts } = await supabase
           .from("appointments")
-          .select("id, car_make, license_plate, service_type, status, created_at, total_price, services")
+          .select("id, car_make, license_plate, service_type, status, created_at, total_price, services, work_items, parts_cost, services_cost")
           .eq("phone", clientPhone)
           .order("created_at", { ascending: false })
-          .limit(20);
+          .limit(50);
 
         if (appts && appts.length > 0) {
           const apptIds = appts.map((a) => a.id);
@@ -158,12 +166,14 @@ export default function CabinetPage() {
           const apptsWithDocs = appts.map((a) => ({
             ...a,
             services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
+            work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
+            parts_cost: (a as any).parts_cost ?? 0,
+            services_cost: (a as any).services_cost ?? 0,
             documents: docs?.filter((d) => d.appointment_id === a.id) || [],
           }));
           setAppointments(apptsWithDocs);
         }
 
-        // Load client bonus balance
         const { data: client } = await supabase
           .from("clients")
           .select("bonus_points")
@@ -184,13 +194,29 @@ export default function CabinetPage() {
     setBonusPoints(0);
   };
 
-  const currentAppt = appointments.find((a) => !["completed", "cancelled"].includes(a.status));
+  const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
+  const historyOrders = appointments.filter((a) => TERMINAL.includes(a.status));
 
-  // Compute bonus discount for current appointment
+  const currentAppt = activeOrders[0] || null;
+
   const bonusDiscount = (() => {
     if (!currentAppt?.total_price || bonusPoints <= 0) return 0;
     const maxByPct = Math.floor(currentAppt.total_price * maxBonusPct / 100);
     return Math.min(bonusPoints, maxByPct);
+  })();
+
+  const bonusForecast = (() => {
+    if (!currentAppt?.total_price || bonusPct <= 0) return 0;
+    return Math.floor(currentAppt.total_price * bonusPct / 100);
+  })();
+
+  // Progress percentage for active order
+  const progressPct = (() => {
+    if (!currentAppt) return 0;
+    const cfg = STATUS_CONFIG[currentAppt.status];
+    if (!cfg || cfg.step === 0) return 0;
+    // 5 meaningful steps, completed = 100%
+    return Math.min(100, Math.round((cfg.step / 6) * 100));
   })();
 
   return (
@@ -211,7 +237,6 @@ export default function CabinetPage() {
 
       <div className="container mx-auto px-4 py-10">
         {!tgUser ? (
-          /* Login screen */
           <div className="max-w-md mx-auto text-center">
             <div className="bg-surface border-2 border-border p-10 shadow-brutal">
               <div className="w-16 h-16 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-6">
@@ -220,12 +245,8 @@ export default function CabinetPage() {
               <h2 className="font-display text-3xl tracking-wider mb-3">ВОЙДИТЕ ЧЕРЕЗ TELEGRAM</h2>
               <p className="font-mono text-sm text-muted-foreground mb-8 leading-relaxed">
                 Для доступа к личному кабинету войдите через официальный Telegram Login Widget.
-                Никакие личные данные не хранятся без вашего ведома.
               </p>
-
-              {/* Telegram widget container */}
               <div ref={widgetRef} className="flex justify-center mb-6" />
-
               <div className="mt-6 bg-orange/5 border border-orange/20 p-4 text-left">
                 <p className="font-mono text-xs text-muted-foreground leading-relaxed">
                   <span className="text-orange font-bold">Нет Telegram?</span><br />
@@ -237,7 +258,6 @@ export default function CabinetPage() {
             </div>
           </div>
         ) : (
-          /* Authenticated cabinet */
           <div className="max-w-3xl mx-auto space-y-8">
             {/* Profile + Bonus */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -273,7 +293,6 @@ export default function CabinetPage() {
                 </button>
               </div>
 
-              {/* Bonus balance card */}
               <div className="bg-surface border-2 border-orange/40 p-5 flex flex-col items-center justify-center gap-1">
                 <Gift className="w-6 h-6 text-orange" />
                 <span className="font-display text-4xl text-orange">{bonusPoints}</span>
@@ -300,35 +319,63 @@ export default function CabinetPage() {
               </div>
             ) : (
               <>
-                {/* Active repair with timeline */}
+                {/* ===== ACTIVE ORDER CARD ===== */}
                 {currentAppt && (
                   <div>
                     <span className="font-mono text-xs text-orange uppercase tracking-widest block mb-3">
-                      // Текущий заказ
+                      // Текущий ремонт
                     </span>
                     <div className="bg-surface border-2 border-orange/50 p-6 shadow-brutal-sm">
-                      <div className="flex items-start justify-between mb-6">
+                      {/* Header */}
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
+                          <Car className="w-5 h-5 text-orange" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-display text-3xl tracking-wider">ВАШ АВТОМОБИЛЬ В РАБОТЕ</h3>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start justify-between mb-4">
                         <div>
-                          <h3 className="font-display text-3xl tracking-wider">{currentAppt.car_make}</h3>
+                          <p className="font-display text-xl tracking-wider">{currentAppt.car_make}</p>
                           {currentAppt.license_plate && (
                             <span className="font-mono text-sm text-muted-foreground">{currentAppt.license_plate}</span>
                           )}
                         </div>
-                        {currentAppt.total_price && (
+                        {currentAppt.total_price != null && currentAppt.total_price > 0 && (
                           <div className="text-right">
                             <span className="font-mono text-xs text-muted-foreground block">Стоимость</span>
                             <span className="font-display text-2xl text-orange">
-                              от {formatPrice(currentAppt.total_price)}
+                              {formatPrice(currentAppt.total_price)}
                             </span>
                           </div>
                         )}
                       </div>
 
-                      {/* Timeline */}
-                      <div className="relative mb-6">
+                      {/* Progress Bar */}
+                      <div className="mb-2">
+                        <div className="flex items-center justify-between mb-1">
+                          {(() => {
+                            const cfg = STATUS_CONFIG[currentAppt.status];
+                            const Icon = cfg?.icon || Clock;
+                            return (
+                              <span className={`font-mono text-sm font-bold flex items-center gap-1.5 ${cfg?.color || "text-orange"}`}>
+                                <Icon className="w-4 h-4" />
+                                {cfg?.label || currentAppt.status}
+                              </span>
+                            );
+                          })()}
+                          <span className="font-mono text-xs text-muted-foreground">{progressPct}%</span>
+                        </div>
+                        <Progress value={progressPct} className="h-2" />
+                      </div>
+
+                      {/* Timeline dots */}
+                      <div className="relative mb-6 mt-4">
                         <div className="flex items-center justify-between relative">
                           <div className="absolute top-3 left-0 right-0 h-0.5 bg-border" />
-                          {TIMELINE_STEPS.map((step, idx) => {
+                          {TIMELINE_STEPS.map((step) => {
                             const cfg = STATUS_CONFIG[step.key];
                             const currentStep = STATUS_CONFIG[currentAppt.status]?.step || 0;
                             const isDone = cfg.step <= currentStep && currentAppt.status !== "cancelled";
@@ -354,21 +401,72 @@ export default function CabinetPage() {
                         </div>
                       </div>
 
-                      {/* Current status label */}
-                      {(() => {
-                        const cfg = STATUS_CONFIG[currentAppt.status];
-                        const Icon = cfg?.icon || Clock;
-                        return (
-                          <div className={`flex items-center gap-2 font-mono text-sm ${cfg?.color || "text-orange"}`}>
-                            <Icon className="w-4 h-4" />
-                            <span className="font-bold">{cfg?.label || currentAppt.status}</span>
+                      {/* Work items list */}
+                      {currentAppt.work_items.length > 0 && (
+                        <div className="border-t-2 border-border pt-4 mb-4">
+                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Работы и запчасти</p>
+                          <div className="space-y-1">
+                            {currentAppt.work_items.map((item, i) => (
+                              <div key={i} className="flex justify-between font-mono text-sm">
+                                <span className="flex items-center gap-2">
+                                  {item.type === "part" ? (
+                                    <Package className="w-3 h-3 text-muted-foreground" />
+                                  ) : (
+                                    <Wrench className="w-3 h-3 text-muted-foreground" />
+                                  )}
+                                  {item.name}
+                                </span>
+                                <span className="text-orange">{formatPrice(item.price)}</span>
+                              </div>
+                            ))}
                           </div>
-                        );
-                      })()}
+                          {(currentAppt.parts_cost > 0 || currentAppt.services_cost > 0) && (
+                            <div className="mt-3 pt-3 border-t border-border space-y-1 font-mono text-xs text-muted-foreground">
+                              {currentAppt.parts_cost > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Запчасти:</span>
+                                  <span>{formatPrice(currentAppt.parts_cost)}</span>
+                                </div>
+                              )}
+                              {currentAppt.services_cost > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Работа:</span>
+                                  <span>{formatPrice(currentAppt.services_cost)}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Services list (if no work_items yet) */}
+                      {currentAppt.work_items.length === 0 && currentAppt.services && currentAppt.services.length > 0 && (
+                        <div className="border-t-2 border-border pt-4 mb-4">
+                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Услуги</p>
+                          <div className="space-y-1">
+                            {currentAppt.services.map((s, i) => (
+                              <div key={i} className="flex justify-between font-mono text-sm">
+                                <span>{s.name}</span>
+                                <span className="text-orange">от {formatPrice(s.price_from)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bonus forecast */}
+                      {bonusForecast > 0 && (
+                        <div className="bg-green-400/5 border border-green-400/20 p-3 mb-4">
+                          <div className="flex items-center gap-2 font-mono text-sm text-green-400">
+                            <TrendingUp className="w-4 h-4" />
+                            <span>За этот ремонт вам будет начислено <strong>{bonusForecast}</strong> бонусов ({bonusPct}%)</span>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Use bonuses toggle */}
-                      {bonusPoints > 0 && currentAppt.total_price && (
-                        <div className="mt-4 pt-4 border-t-2 border-border">
+                      {bonusPoints > 0 && currentAppt.total_price != null && currentAppt.total_price > 0 && (
+                        <div className="border-t-2 border-border pt-4">
                           <label className="flex items-center gap-3 cursor-pointer select-none">
                             <div
                               onClick={() => setUseBonuses((v) => !v)}
@@ -380,7 +478,7 @@ export default function CabinetPage() {
                               <span className="font-mono text-sm font-bold">Использовать бонусы</span>
                               <span className="font-mono text-xs text-muted-foreground block">
                                 {useBonuses
-                                  ? `Скидка ${formatPrice(bonusDiscount)} (−${bonusDiscount} баллов из ${bonusPoints})`
+                                  ? `Скидка ${formatPrice(bonusDiscount)} (−${bonusDiscount} из ${bonusPoints})`
                                   : `Доступно ${bonusPoints} баллов · скидка до ${formatPrice(bonusDiscount)}`
                                 }
                               </span>
@@ -409,97 +507,155 @@ export default function CabinetPage() {
                   </div>
                 )}
 
-                {/* All appointments */}
-                <div>
-                  <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-3">
-                    // История заказов
-                  </span>
-                  <div className="space-y-3">
-                    {appointments.map((appt) => {
-                      const cfg = STATUS_CONFIG[appt.status];
-                      const Icon = cfg?.icon || Clock;
-                      const isOpen = expanded === appt.id;
-                      return (
-                        <div key={appt.id} className="bg-surface border-2 border-border hover:border-orange/30 transition-colors">
-                          <button
-                            onClick={() => setExpanded(isOpen ? null : appt.id)}
-                            className="w-full p-5 flex items-center justify-between text-left"
-                          >
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
-                                <Car className="w-5 h-5 text-orange" />
+                {/* ===== HISTORY ===== */}
+                {historyOrders.length > 0 && (
+                  <div>
+                    <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-3">
+                      // История обслуживаний
+                    </span>
+                    <div className="space-y-3">
+                      {historyOrders.map((appt) => {
+                        const cfg = STATUS_CONFIG[appt.status];
+                        const Icon = cfg?.icon || Clock;
+                        const isOpen = expanded === appt.id;
+                        return (
+                          <div key={appt.id} className="bg-surface border-2 border-border hover:border-orange/30 transition-colors">
+                            <button
+                              onClick={() => setExpanded(isOpen ? null : appt.id)}
+                              className="w-full p-5 flex items-center justify-between text-left"
+                            >
+                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
+                                  <Car className="w-5 h-5 text-orange" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-display text-xl tracking-wider">{appt.car_make}</p>
+                                  <p className="font-mono text-xs text-muted-foreground">
+                                    {new Date(appt.created_at).toLocaleDateString("ru-RU")}
+                                    {appt.license_plate && ` · ${appt.license_plate}`}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
+                              <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                                {appt.total_price != null && appt.total_price > 0 && (
+                                  <span className="font-mono text-sm text-orange hidden sm:block">{formatPrice(appt.total_price)}</span>
+                                )}
+                                <span className={`font-mono text-xs flex items-center gap-1 ${cfg?.color || "text-orange"}`}>
+                                  <Icon className="w-3 h-3" />
+                                  {cfg?.label}
+                                </span>
+                                <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                              </div>
+                            </button>
+
+                            {isOpen && (
+                              <div className="border-t-2 border-border p-5 space-y-4">
+                                {/* Work items */}
+                                {appt.work_items.length > 0 && (
+                                  <div>
+                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Работы и запчасти</p>
+                                    <div className="space-y-1">
+                                      {appt.work_items.map((item, i) => (
+                                        <div key={i} className="flex justify-between font-mono text-sm">
+                                          <span>{item.name}</span>
+                                          <span className="text-orange">{formatPrice(item.price)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Services */}
+                                {appt.work_items.length === 0 && appt.services && appt.services.length > 0 && (
+                                  <div>
+                                    <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Услуги</p>
+                                    <div className="space-y-1">
+                                      {appt.services.map((s, i) => (
+                                        <div key={i} className="flex justify-between font-mono text-sm">
+                                          <span>{s.name}</span>
+                                          <span className="text-orange">от {formatPrice(s.price_from)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Documents */}
+                                {appt.documents && appt.documents.length > 0 && (
+                                  <div>
+                                    <p className="font-mono text-xs text-orange uppercase tracking-widest mb-2">
+                                      Документы ({appt.documents.length})
+                                    </p>
+                                    <div className="space-y-2">
+                                      {appt.documents.map((doc) => (
+                                        <a
+                                          key={doc.id}
+                                          href={doc.file_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-3 p-3 border border-border hover:border-orange hover:text-orange transition-colors"
+                                        >
+                                          <FileText className="w-4 h-4 flex-shrink-0" />
+                                          <div className="flex-1 min-w-0">
+                                            <span className="font-mono text-sm block">
+                                              {DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}
+                                            </span>
+                                            <span className="font-mono text-xs text-muted-foreground">
+                                              {new Date(doc.created_at).toLocaleDateString("ru-RU")}
+                                            </span>
+                                          </div>
+                                          <Download className="w-4 h-4 flex-shrink-0" />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {appt.total_price != null && appt.total_price > 0 && (
+                                  <div className="flex justify-between font-mono text-sm font-bold border-t border-border pt-3">
+                                    <span>Итого</span>
+                                    <span className="text-orange">{formatPrice(appt.total_price)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Active orders beyond first (rare edge case) */}
+                {activeOrders.length > 1 && (
+                  <div>
+                    <span className="font-mono text-xs text-orange uppercase tracking-widest block mb-3">
+                      // Другие активные заказы
+                    </span>
+                    <div className="space-y-3">
+                      {activeOrders.slice(1).map((appt) => {
+                        const cfg = STATUS_CONFIG[appt.status];
+                        const Icon = cfg?.icon || Clock;
+                        return (
+                          <div key={appt.id} className="bg-surface border-2 border-orange/30 p-5">
+                            <div className="flex items-center justify-between">
+                              <div>
                                 <p className="font-display text-xl tracking-wider">{appt.car_make}</p>
                                 <p className="font-mono text-xs text-muted-foreground">
                                   {new Date(appt.created_at).toLocaleDateString("ru-RU")}
-                                  {appt.license_plate && ` · ${appt.license_plate}`}
                                 </p>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                              <span className={`font-mono text-xs flex items-center gap-1 ${cfg?.color || "text-orange"}`}>
+                              <span className={`font-mono text-xs flex items-center gap-1 ${cfg?.color}`}>
                                 <Icon className="w-3 h-3" />
                                 {cfg?.label}
                               </span>
-                              <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
                             </div>
-                          </button>
-
-                          {isOpen && (
-                            <div className="border-t-2 border-border p-5 space-y-4">
-                              {/* Services */}
-                              {appt.services && appt.services.length > 0 && (
-                                <div>
-                                  <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Услуги</p>
-                                  <div className="space-y-1">
-                                    {appt.services.map((s, i) => (
-                                      <div key={i} className="flex justify-between font-mono text-sm">
-                                        <span>{s.name}</span>
-                                        <span className="text-orange">от {formatPrice(s.price_from)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Documents */}
-                              {appt.documents && appt.documents.length > 0 && (
-                                <div>
-                                  <p className="font-mono text-xs text-orange uppercase tracking-widest mb-2">
-                                    Документы ({appt.documents.length})
-                                  </p>
-                                  <div className="space-y-2">
-                                    {appt.documents.map((doc) => (
-                                      <a
-                                        key={doc.id}
-                                        href={doc.file_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-3 p-3 border border-border hover:border-orange hover:text-orange transition-colors"
-                                      >
-                                        <FileText className="w-4 h-4 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <span className="font-mono text-sm block">
-                                            {DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}
-                                          </span>
-                                          <span className="font-mono text-xs text-muted-foreground">
-                                            {new Date(doc.created_at).toLocaleDateString("ru-RU")}
-                                          </span>
-                                        </div>
-                                        <Download className="w-4 h-4 flex-shrink-0" />
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -524,7 +680,6 @@ function PhoneLinkPrompt({ tgUser, onLinked }: {
     }
     setLoading(true);
     try {
-      // Save telegram session with phone
       await supabase.from("telegram_sessions").upsert({
         telegram_id: tgUser.id,
         first_name: tgUser.first_name,
@@ -536,7 +691,6 @@ function PhoneLinkPrompt({ tgUser, onLinked }: {
         hash: tgUser.hash,
       }, { onConflict: "telegram_id" });
 
-      // Link to clients table
       await supabase.from("clients").upsert({
         phone: phone.trim(),
         telegram_chat_id: String(tgUser.id),
