@@ -151,7 +151,7 @@ export default function AppointmentFinancialBlock({
   const save = async () => {
     setSaving(true);
     const { error } = await supabase.from("appointments").update({
-      work_items: items as unknown as Record<string, unknown>[],
+      work_items: items as unknown as import("@/integrations/supabase/types").Json,
       parts_cost: partsCost,
       services_cost: servicesCost,
       total_price: grandTotal || null,
