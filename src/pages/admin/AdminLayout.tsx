@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
   Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
-  ShieldCheck, ServerCog, ShoppingCart, UsersRound
+  ShieldCheck, ServerCog, ShoppingCart, UsersRound, WifiOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
+import { supabase } from "@/integrations/supabase/client";
 
 const allNavItems = [
   { href: "/admin",             label: "Дашборд",        icon: LayoutDashboard, exact: true, permission: "view_dashboard" },
@@ -32,37 +33,61 @@ const ROLE_BADGE: Record<string, string> = {
   master:  "MASTER",
 };
 
-// Skeleton строки для навигации во время загрузки
 function NavSkeleton() {
   return (
     <div className="flex-1 py-4 space-y-1 px-4">
-      {Array.from({ length: 7 }).map((_, i) => (
-        <div key={i} className="h-10 bg-sidebar-accent/40 animate-pulse rounded-sm" style={{ opacity: 1 - i * 0.1 }} />
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-10 bg-sidebar-accent/40 animate-pulse rounded-sm"
+          style={{ opacity: Math.max(0.2, 1 - i * 0.12) }}
+        />
       ))}
     </div>
   );
 }
 
+/** Проверяет сессию и возвращает true если есть проблемы со связью */
+function useConnectionStatus() {
+  const [offline, setOffline] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      const { error } = await supabase.auth.getSession();
+      setOffline(!!error);
+    };
+
+    // Проверяем при потере сети
+    const handleOffline = () => setOffline(true);
+    const handleOnline = () => { setOffline(false); check(); };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online",  handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online",  handleOnline);
+    };
+  }, []);
+
+  return offline;
+}
+
 export default function AdminLayout() {
   const location = useLocation();
   const { session, role, loading, hasPermission, signOut } = useAuth();
+  const isOffline = useConnectionStatus();
 
-  // Guard: проверяет сессию, профиль и редиректит при необходимости
   useAuthGuard();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const handleLogout = async () => {
-    await signOut();
-  };
 
   const isActive = (item: typeof allNavItems[0]) => {
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
   };
 
-  // Пока auth грузится — показываем полноэкранный спиннер
-  if (loading || session === undefined) {
+  // Глобальный спиннер пока Auth не инициализировался
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-3">
@@ -73,12 +98,11 @@ export default function AdminLayout() {
     );
   }
 
-  // Нет сессии — useAuthGuard уже запустил редирект, рендерим null чтобы не мигать
+  // Нет сессии — guard сделает редирект, не мигаем
   if (!session) return null;
 
-  // Фильтрация навигации по правам (если роль ещё не загружена — скрываем, не ломаем)
   const navItems = allNavItems.filter((item) => {
-    if (!role) return true; // legacy: нет роли = полный доступ
+    if (!role) return true;
     return hasPermission(item.permission);
   });
 
@@ -95,13 +119,17 @@ export default function AdminLayout() {
             <Wrench className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
-            <p className="font-display text-sm tracking-widest">СЕРВИС<span className="text-orange">-</span>ТОЧКА</p>
+            <p className="font-display text-sm tracking-widest">
+              СЕРВИС<span className="text-orange">-</span>ТОЧКА
+            </p>
             <p className="font-mono text-xs text-muted-foreground">Admin Panel</p>
           </div>
         </div>
 
-        {/* Nav — skeleton пока роль не загружена */}
-        {loading ? <NavSkeleton /> : (
+        {/* Nav */}
+        {!role ? (
+          <NavSkeleton />
+        ) : (
           <nav className="flex-1 py-4 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -145,7 +173,7 @@ export default function AdminLayout() {
               ↗ Сайт
             </Link>
             <button
-              onClick={handleLogout}
+              onClick={() => signOut()}
               className="flex-1 flex items-center justify-center gap-1 font-mono text-xs border border-sidebar-border py-2 hover:border-destructive hover:text-destructive transition-colors"
             >
               <LogOut className="w-3 h-3" />
@@ -176,11 +204,21 @@ export default function AdminLayout() {
           <div className="font-mono text-xs text-muted-foreground">
             {navItems.find(isActive)?.label || "Admin"}
           </div>
-          {role && (
-            <span className="ml-auto font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
-              {ROLE_BADGE[role]}
-            </span>
-          )}
+
+          <div className="ml-auto flex items-center gap-3">
+            {/* Индикатор потери связи */}
+            {isOffline && (
+              <div className="flex items-center gap-1.5 border border-destructive/30 bg-destructive/10 px-2 py-1">
+                <WifiOff className="w-3 h-3 text-destructive" />
+                <span className="font-mono text-xs text-destructive">Нет связи</span>
+              </div>
+            )}
+            {role && (
+              <span className="font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
+                {ROLE_BADGE[role]}
+              </span>
+            )}
+          </div>
         </header>
 
         <main className="flex-1 p-6">
