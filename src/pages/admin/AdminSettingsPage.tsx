@@ -211,17 +211,28 @@ export default function AdminSettingsPage() {
           <h1 className="font-display text-4xl tracking-wider">НАСТРОЙКИ САЙТА</h1>
           <p className="font-mono text-sm text-muted-foreground">Конфигурация, контакты, модули и интеграции</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || !dirty}
-          className="flex items-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors disabled:opacity-40 shadow-brutal"
-        >
-          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-          {saving ? "Сохраняем..." : "Сохранить"}
-        </button>
+        {canEdit && (
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="flex items-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors disabled:opacity-40 shadow-brutal"
+          >
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+            {saving ? "Сохраняем..." : "Сохранить"}
+          </button>
+        )}
       </div>
 
-      {dirty && (
+      {!canEdit && (
+        <div className="mb-6 flex items-center gap-2 bg-surface border-2 border-border px-4 py-3">
+          <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span className="font-mono text-xs text-muted-foreground">
+            У вашей группы нет права <code className="text-orange">edit_site_config</code> — настройки доступны только для чтения.
+          </span>
+        </div>
+      )}
+
+      {canEdit && dirty && (
         <div className="mb-6 flex items-center gap-2 bg-orange/10 border border-orange/30 px-4 py-2">
           <Save className="w-4 h-4 text-orange" />
           <span className="font-mono text-xs text-orange">Есть несохранённые изменения</span>
@@ -230,6 +241,13 @@ export default function AdminSettingsPage() {
 
       <div className="max-w-2xl space-y-3">
         {SECTIONS.map((section) => {
+          // Restrict individual sections by permission
+          const sectionReadOnly =
+            !canEdit ||
+            (section.id === "telegram" && !canEditTelegram) ||
+            (section.id === "integrations" && !canEditIntegrations) ||
+            (section.id === "bonuses" && !canManageBonusRate);
+
           const isOpen = openSections.has(section.id);
           return (
             <div key={section.id} className="bg-surface border-2 border-border overflow-hidden">
@@ -243,7 +261,10 @@ export default function AdminSettingsPage() {
                   {section.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-display text-xl tracking-wider">{section.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display text-xl tracking-wider">{section.title}</h3>
+                    {sectionReadOnly && <Lock className="w-3 h-3 text-muted-foreground" />}
+                  </div>
                   <p className="font-mono text-xs text-muted-foreground">{section.subtitle}</p>
                 </div>
                 {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
@@ -257,8 +278,9 @@ export default function AdminSettingsPage() {
                       key={field.key}
                       field={field}
                       value={settings[field.key] ?? ""}
-                      onChange={(v) => set(field.key, v)}
-                      onToggle={() => toggle(field.key)}
+                      onChange={(v) => { if (!sectionReadOnly) set(field.key, v); }}
+                      onToggle={() => { if (!sectionReadOnly) toggle(field.key); }}
+                      readOnly={sectionReadOnly}
                     />
                   ))}
 
