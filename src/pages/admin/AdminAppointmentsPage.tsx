@@ -106,7 +106,7 @@ export default function AdminAppointmentsPage() {
       const decPhone = decrypt(appt.phone);
       const { data: allClients } = await supabase
         .from("clients")
-        .select("id, car_history, bonus_points")
+        .select("id, phone, car_history, bonus_points")
         .order("created_at", { ascending: false })
         .limit(500);
 
