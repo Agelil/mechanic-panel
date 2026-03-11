@@ -356,6 +356,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { role } = state;
     if (!role) return false;
     if (role === "admin") return true;
+    // Use DB-loaded permissions cache if available, fall back to static map
+    const userId = currentUserIdRef.current;
+    if (userId && dbPermissionsCache.has(userId)) {
+      return dbPermissionsCache.get(userId)!.has(permission);
+    }
     return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
   }, [state.role]);
 
