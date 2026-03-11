@@ -170,7 +170,7 @@ export default function AdminSupplyPage() {
     setUpdatingId(id);
     try {
       const updatePromise = supabase.from("supply_orders").update({ status }).eq("id", id);
-      const { error } = await withTimeout(updatePromise);
+      const { error } = await withTimeout(Promise.resolve(updatePromise));
       if (error) {
         toast({ title: "Ошибка обновления", description: error.message, variant: "destructive" });
         return;
