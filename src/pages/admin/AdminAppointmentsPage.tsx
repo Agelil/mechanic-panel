@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Clock, CheckCircle2, Wrench, XCircle, ChevronDown, Package, Bell, Upload, Trash2, Image, Eye } from "lucide-react";
+import { Loader2, Clock, CheckCircle2, Wrench, XCircle, ChevronDown, Package, Bell, Upload, Trash2, Image, Eye, Calendar, List } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { decryptPII, decrypt } from "@/lib/encryption";
 import { usePermission } from "@/hooks/use-permission";
 import AppointmentFinancialBlock, { type WorkItem } from "@/components/admin/AppointmentFinancialBlock";
 import OrderDocumentsBlock from "@/components/admin/OrderDocumentsBlock";
+import AppointmentCalendar from "@/components/admin/AppointmentCalendar";
+import FinancialWidgets from "@/components/admin/FinancialWidgets";
 
 interface ServiceItem {
   id: string;
