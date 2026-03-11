@@ -109,7 +109,9 @@ export default function AdminAppointmentsPage() {
       // Update name if missing, append car history
       const history = Array.isArray(existing.car_history) ? existing.car_history : [];
       const alreadyHas = history.some(
-        (h: Record<string, unknown>) => h.car_make === appt.car_make && h.date === appt.created_at
+        (h) => typeof h === "object" && h !== null && !Array.isArray(h) &&
+          (h as Record<string, unknown>).car_make === appt.car_make &&
+          (h as Record<string, unknown>).date === appt.created_at
       );
       const newHistory = carEntry && !alreadyHas ? [...history, carEntry] : history;
       await supabase.from("clients").update({
