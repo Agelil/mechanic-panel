@@ -8,17 +8,20 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/use-user-role";
 import { PERMISSION_SECTIONS } from "@/lib/permissions";
 
-// Section icon map
-import { Bell, DollarSign, ClipboardList, Package, Image, Tag, UserCog, Star, Grid3x3, Settings, ServerCog } from "lucide-react";
+import { Bell, DollarSign, ClipboardList, Package, Image, Tag, UserCog, Star, Grid3x3, Settings, ServerCog, Wrench } from "lucide-react";
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
-  dashboard:    DollarSign,
-  appointments: ClipboardList,
+  appointments: Wrench,
+  finance:      DollarSign,
   supply:       Package,
+  clients_crm:  UserCog,
+  system_cfg:   Settings,
+  // legacy keys kept for safety
+  dashboard:    DollarSign,
   services:     Tag,
   portfolio:    Image,
   promotions:   Tag,
-  clients:      Users,
+  clients:      UserCog,
   reviews:      Star,
   users:        UserCog,
   permissions:  Grid3x3,
