@@ -105,6 +105,16 @@ const SECTIONS: SettingSection[] = [
     ],
   },
   {
+    id: "bonuses",
+    title: "БОНУСНАЯ СИСТЕМА",
+    subtitle: "Кешбэк и ограничения оплаты баллами",
+    icon: <Star className="w-5 h-5" />,
+    fields: [
+      { key: "bonus_percentage", label: "Кешбэк от суммы чека (%)", placeholder: "5", hint: "Процент от итоговой суммы заказа, который начисляется клиенту бонусами при закрытии заказа" },
+      { key: "max_bonus_payment_percentage", label: "Макс. % оплаты бонусами (%)", placeholder: "30", hint: "Клиент может оплатить бонусами не более этого процента от суммы заказа" },
+    ],
+  },
+  {
     id: "seo",
     title: "SEO",
     subtitle: "Мета-теги для поисковых систем",
