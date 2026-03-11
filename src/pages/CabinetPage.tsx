@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Car, FileText, Star, Clock, CheckCircle2, Wrench,
   Package, XCircle, Download, LogOut, User, Phone,
-  ChevronRight, Loader2, Shield
+  ChevronRight, Loader2, Shield, Gift
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -67,6 +67,9 @@ export default function CabinetPage() {
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [bonusPoints, setBonusPoints] = useState<number>(0);
+  const [maxBonusPct, setMaxBonusPct] = useState<number>(30);
+  const [useBonuses, setUseBonuses] = useState(false);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -118,7 +121,6 @@ export default function CabinetPage() {
   const loadClientData = async (user: TelegramUser) => {
     setLoading(true);
     try {
-      // Find client by telegram ID or phone
       const { data: tgSession } = await supabase
         .from("telegram_sessions")
         .select("phone")
@@ -128,17 +130,25 @@ export default function CabinetPage() {
       const clientPhone = tgSession?.phone || phone;
       if (clientPhone) setPhone(clientPhone);
 
+      // Load bonus settings
+      const { data: settings } = await supabase
+        .from("settings")
+        .select("key, value")
+        .in("key", ["max_bonus_payment_percentage"]);
+      if (settings) {
+        const maxPct = settings.find((s) => s.key === "max_bonus_payment_percentage");
+        if (maxPct?.value) setMaxBonusPct(parseFloat(maxPct.value) || 30);
+      }
+
       if (clientPhone) {
-        // Load appointments
         const { data: appts } = await supabase
           .from("appointments")
           .select("id, car_make, license_plate, service_type, status, created_at, total_price, services")
           .eq("phone", clientPhone)
           .order("created_at", { ascending: false })
-          .limit(10);
+          .limit(20);
 
         if (appts && appts.length > 0) {
-          // Load documents for each appointment
           const apptIds = appts.map((a) => a.id);
           const { data: docs } = await supabase
             .from("appointment_documents")
@@ -152,6 +162,14 @@ export default function CabinetPage() {
           }));
           setAppointments(apptsWithDocs);
         }
+
+        // Load client bonus balance
+        const { data: client } = await supabase
+          .from("clients")
+          .select("bonus_points")
+          .eq("phone", clientPhone)
+          .maybeSingle();
+        if (client) setBonusPoints(client.bonus_points || 0);
       }
     } finally {
       setLoading(false);
@@ -163,9 +181,17 @@ export default function CabinetPage() {
     setTgUser(null);
     setAppointments([]);
     setPhone(null);
+    setBonusPoints(0);
   };
 
   const currentAppt = appointments.find((a) => !["completed", "cancelled"].includes(a.status));
+
+  // Compute bonus discount for current appointment
+  const bonusDiscount = (() => {
+    if (!currentAppt?.total_price || bonusPoints <= 0) return 0;
+    const maxByPct = Math.floor(currentAppt.total_price * maxBonusPct / 100);
+    return Math.min(bonusPoints, maxByPct);
+  })();
 
   return (
     <div className="min-h-screen pt-16 bg-background">
@@ -213,37 +239,51 @@ export default function CabinetPage() {
         ) : (
           /* Authenticated cabinet */
           <div className="max-w-3xl mx-auto space-y-8">
-            {/* Profile */}
-            <div className="bg-surface border-2 border-border p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {tgUser.photo_url ? (
-                  <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
-                ) : (
-                  <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
-                    <User className="w-6 h-6 text-orange" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-display text-2xl tracking-wider">
-                    {tgUser.first_name} {tgUser.last_name || ""}
-                  </p>
-                  {tgUser.username && (
-                    <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
+            {/* Profile + Bonus */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2 bg-surface border-2 border-border p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {tgUser.photo_url ? (
+                    <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
+                  ) : (
+                    <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
+                      <User className="w-6 h-6 text-orange" />
+                    </div>
                   )}
-                  {phone && (
-                    <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
-                      <Phone className="w-3 h-3" /> {phone}
+                  <div>
+                    <p className="font-display text-2xl tracking-wider">
+                      {tgUser.first_name} {tgUser.last_name || ""}
                     </p>
-                  )}
+                    {tgUser.username && (
+                      <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
+                    )}
+                    {phone && (
+                      <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
+                        <Phone className="w-3 h-3" /> {phone}
+                      </p>
+                    )}
+                  </div>
                 </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 font-mono text-xs border border-border px-3 py-2 hover:border-destructive hover:text-destructive transition-colors"
+                >
+                  <LogOut className="w-3 h-3" />
+                  Выйти
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 font-mono text-xs border border-border px-3 py-2 hover:border-destructive hover:text-destructive transition-colors"
-              >
-                <LogOut className="w-3 h-3" />
-                Выйти
-              </button>
+
+              {/* Bonus balance card */}
+              <div className="bg-surface border-2 border-orange/40 p-5 flex flex-col items-center justify-center gap-1">
+                <Gift className="w-6 h-6 text-orange" />
+                <span className="font-display text-4xl text-orange">{bonusPoints}</span>
+                <span className="font-mono text-xs text-muted-foreground">бонусных баллов</span>
+                {bonusPoints > 0 && (
+                  <span className="font-mono text-xs text-muted-foreground text-center mt-1">
+                    ≈ {formatPrice(bonusPoints)} скидки
+                  </span>
+                )}
+              </div>
             </div>
 
             {loading ? (
@@ -325,6 +365,46 @@ export default function CabinetPage() {
                           </div>
                         );
                       })()}
+
+                      {/* Use bonuses toggle */}
+                      {bonusPoints > 0 && currentAppt.total_price && (
+                        <div className="mt-4 pt-4 border-t-2 border-border">
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <div
+                              onClick={() => setUseBonuses((v) => !v)}
+                              className={`w-10 h-6 rounded-full border-2 flex items-center transition-colors ${useBonuses ? "bg-orange border-orange" : "bg-background border-border"}`}
+                            >
+                              <div className={`w-4 h-4 rounded-full bg-primary-foreground transition-transform mx-0.5 ${useBonuses ? "translate-x-4" : "translate-x-0"}`} />
+                            </div>
+                            <div>
+                              <span className="font-mono text-sm font-bold">Использовать бонусы</span>
+                              <span className="font-mono text-xs text-muted-foreground block">
+                                {useBonuses
+                                  ? `Скидка ${formatPrice(bonusDiscount)} (−${bonusDiscount} баллов из ${bonusPoints})`
+                                  : `Доступно ${bonusPoints} баллов · скидка до ${formatPrice(bonusDiscount)}`
+                                }
+                              </span>
+                            </div>
+                          </label>
+                          {useBonuses && (
+                            <div className="mt-3 bg-orange/5 border border-orange/20 p-3 font-mono text-sm">
+                              <div className="flex justify-between">
+                                <span>Стоимость работ</span>
+                                <span>{formatPrice(currentAppt.total_price)}</span>
+                              </div>
+                              <div className="flex justify-between text-orange">
+                                <span>Скидка бонусами</span>
+                                <span>−{formatPrice(bonusDiscount)}</span>
+                              </div>
+                              <div className="flex justify-between font-bold border-t border-orange/20 pt-2 mt-2">
+                                <span>Итого к оплате</span>
+                                <span className="text-orange">{formatPrice(currentAppt.total_price - bonusDiscount)}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">Сообщите менеджеру об оплате бонусами при получении автомобиля.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Save, Loader2, CheckCircle2, Bot, Hash, Bell, Link as LinkIcon,
   Copy, Sheet, ToggleLeft, ToggleRight, Users, Phone, MapPin, Clock,
-  Globe, Search, Share2, Settings2, ChevronDown, ChevronRight
+  Globe, Search, Share2, Settings2, ChevronDown, ChevronRight, Star
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateSiteSettingsCache } from "@/hooks/use-site-settings";
@@ -102,6 +102,16 @@ const SECTIONS: SettingSection[] = [
     fields: [
       { key: "google_sheets_enabled", label: "Синхронизация с Google Sheets", type: "toggle", hint: "Новые заявки и смена статусов отправляются в таблицу" },
       { key: "google_sheets_id",      label: "ID Google Таблицы",             placeholder: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms", hint: "Из URL таблицы: /spreadsheets/d/[ID]/edit" },
+    ],
+  },
+  {
+    id: "bonuses",
+    title: "БОНУСНАЯ СИСТЕМА",
+    subtitle: "Кешбэк и ограничения оплаты баллами",
+    icon: <Star className="w-5 h-5" />,
+    fields: [
+      { key: "bonus_percentage", label: "Кешбэк от суммы чека (%)", placeholder: "5", hint: "Процент от итоговой суммы заказа, который начисляется клиенту бонусами при закрытии заказа" },
+      { key: "max_bonus_payment_percentage", label: "Макс. % оплаты бонусами (%)", placeholder: "30", hint: "Клиент может оплатить бонусами не более этого процента от суммы заказа" },
     ],
   },
   {
