@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, LogIn, Eye, EyeOff, Wrench, UserPlus, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Loader2, LogIn, Eye, EyeOff, Wrench, UserPlus, ArrowLeft, CheckCircle2, AlertTriangle } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 type Mode = "login" | "register";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/admin";
+  const isExpired = searchParams.get("expired") === "1";
+
   const [mode, setMode] = useState<Mode>("login");
 
   // Login fields
@@ -14,7 +18,7 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(isExpired ? "Сессия истекла. Пожалуйста, войдите снова." : "");
 
   // Register fields
   const [regFullName, setRegFullName] = useState("");
@@ -31,7 +35,7 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate("/admin");
+      if (session) navigate(returnTo, { replace: true });
     });
     supabase
       .from("settings")
@@ -42,7 +46,7 @@ export default function AdminLoginPage() {
         setAllowRegistration(data?.value === "true");
         setCheckingSettings(false);
       });
-  }, [navigate]);
+  }, [navigate, returnTo]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
