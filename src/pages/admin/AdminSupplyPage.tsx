@@ -129,7 +129,7 @@ export default function AdminSupplyPage() {
         status: "pending",
       }).select().single();
 
-      const { data, error } = await withTimeout(insertPromise);
+      const { data, error } = await withTimeout(Promise.resolve(insertPromise));
 
       if (error) {
         toast({ title: "Ошибка", description: error.message, variant: "destructive" });
