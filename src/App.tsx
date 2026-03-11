@@ -18,6 +18,7 @@ import BookingPage from "@/pages/BookingPage";
 import CabinetPage from "@/pages/CabinetPage";
 import NotFound from "@/pages/NotFound";
 import PrivacyPage from "@/pages/PrivacyPage";
+import BookingSuccessPage from "@/pages/BookingSuccessPage";
 
 import PortfolioDetailPage from "@/pages/PortfolioDetailPage";
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
