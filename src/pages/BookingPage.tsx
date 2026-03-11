@@ -60,9 +60,55 @@ export default function BookingPage() {
     });
   }, []);
 
-  // Auto-fill from TG session's last appointment
+  // Auto-fill from TG session or Supabase auth session
   useEffect(() => {
     if (autoFilled) return;
+
+    // Try Supabase auth session first
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        setIsGuest(false);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        
+        // Find last appointment by email or user
+        const userEmail = session.user.email;
+        const userName = profile?.full_name || session.user.user_metadata?.full_name || "";
+        
+        // Get phone from users_registry
+        const { data: regData } = await supabase
+          .from("users_registry" as any)
+          .select("phone")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        const regPhone = (regData as any)?.phone || "";
+
+        // Last appointment
+        if (regPhone || userName) {
+          const q = supabase.from("appointments")
+            .select("name, phone, car_make, car_vin")
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (regPhone) q.eq("phone", regPhone);
+          const { data: lastAppt } = await q.maybeSingle();
+
+          setForm(prev => ({
+            ...prev,
+            name: lastAppt?.name || userName || prev.name,
+            phone: lastAppt?.phone || regPhone || prev.phone,
+            car_make: lastAppt?.car_make || prev.car_make,
+            car_vin: lastAppt?.car_vin || prev.car_vin,
+          }));
+        }
+        setAutoFilled(true);
+        return;
+      }
+    });
+
+    // Fallback: TG session
     const saved = localStorage.getItem("tg_cabinet_user");
     if (!saved) return;
 
@@ -70,8 +116,8 @@ export default function BookingPage() {
       const tgUser = JSON.parse(saved);
       const now = Math.floor(Date.now() / 1000);
       if (now - tgUser.auth_date >= 86400) return;
+      setIsGuest(false);
 
-      // Get phone from telegram_sessions
       supabase
         .from("telegram_sessions")
         .select("phone")
@@ -81,10 +127,8 @@ export default function BookingPage() {
           const clientPhone = session?.phone;
           if (!clientPhone) return;
 
-          // Pre-fill name from TG
           const tgName = `${tgUser.first_name || ""} ${tgUser.last_name || ""}`.trim();
 
-          // Find last appointment for this phone
           supabase
             .from("appointments")
             .select("name, phone, car_make, car_vin")
