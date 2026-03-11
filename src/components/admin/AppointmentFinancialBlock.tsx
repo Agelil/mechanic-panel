@@ -180,9 +180,16 @@ export default function AppointmentFinancialBlock({
         body: { appointment_id: appointmentId, doc_type: "work_order" },
       });
       if (error) throw error;
-      if (data?.file_url) {
-        window.open(data.file_url, "_blank");
-        toast({ title: "✓ Предварительный счёт сформирован" });
+      if (data?.html) {
+        const blob = new Blob([data.html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const printWin = window.open(url, "_blank");
+        if (printWin) {
+          printWin.onload = () => {
+            setTimeout(() => printWin.print(), 400);
+          };
+        }
+        toast({ title: "✓ Заказ-наряд сформирован — сохраните как PDF" });
       }
     } catch (e) {
       toast({ title: "Ошибка генерации документа", description: String(e), variant: "destructive" });
