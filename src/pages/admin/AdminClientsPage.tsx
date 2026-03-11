@@ -137,26 +137,30 @@ export default function AdminClientsPage() {
     setEditClient(client);
     setEditNameError("");
     setPhoneWarning(false);
-    // Get car info from last appointment
-    let carMake = "", carVin = "";
     const decPhone = decrypt(client.phone) || client.phone;
-    if (decPhone) {
-      const { data } = await supabase
-        .from("appointments")
-        .select("car_make, car_vin")
-        .eq("phone", decPhone)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      carMake = data?.car_make || "";
-      carVin = data?.car_vin || "";
+    setEditForm({ name: client.name || "", phone: decPhone || client.phone });
+
+    // Find user_id from users_registry by phone
+    const { data: regData } = await supabase
+      .from("users_registry" as any)
+      .select("user_id")
+      .eq("phone", decPhone)
+      .maybeSingle();
+    const userId = (regData as any)?.user_id || null;
+    setEditClientUserId(userId);
+
+    // Load cars for this user
+    if (userId) {
+      const { data: carsData } = await supabase
+        .from("customer_cars" as any)
+        .select("id, user_id, brand_model, vin")
+        .eq("user_id", userId);
+      setEditCars((carsData as any as CustomerCar[]) || []);
+    } else {
+      setEditCars([]);
     }
-    setEditForm({
-      name: client.name || "",
-      phone: decPhone || client.phone,
-      car_make: carMake,
-      car_vin: carVin,
-    });
+    setEditNewCarBrand("");
+    setEditNewCarVin("");
   };
 
   const saveEditClient = async () => {
