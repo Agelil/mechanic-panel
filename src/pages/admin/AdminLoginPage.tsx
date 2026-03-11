@@ -66,7 +66,11 @@ export default function AdminLoginPage() {
     setRegError("");
 
     if (!regFullName.trim()) {
-      setRegError("Введите ваше имя");
+      setRegError("Введите имя и фамилию");
+      return;
+    }
+    if (!/^\S+\s+\S+/.test(regFullName.trim())) {
+      setRegError("Пожалуйста, укажите фамилию для корректного оформления документов");
       return;
     }
     if (!regEmail.trim()) {
