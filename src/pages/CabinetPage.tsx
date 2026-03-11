@@ -161,6 +161,71 @@ export default function CabinetPage() {
     });
   }, [tgUser, emailUser]);
 
+  const loadAppointmentsByPhone = async (clientPhone: string) => {
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("key, value")
+      .in("key", ["max_bonus_payment_percentage", "bonus_percentage"]);
+    if (settings) {
+      const maxPctSetting = settings.find((s) => s.key === "max_bonus_payment_percentage");
+      if (maxPctSetting?.value) setMaxBonusPct(parseFloat(maxPctSetting.value) || 30);
+      const bonusPctSetting = settings.find((s) => s.key === "bonus_percentage");
+      if (bonusPctSetting?.value) setBonusPct(parseFloat(bonusPctSetting.value) || 0);
+    }
+
+    const { data: appts } = await supabase
+      .from("appointments")
+      .select("id, car_make, license_plate, service_type, status, created_at, total_price, services, work_items, parts_cost, services_cost")
+      .eq("phone", clientPhone)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (appts && appts.length > 0) {
+      const apptIds = appts.map((a) => a.id);
+      const { data: docs } = await supabase
+        .from("appointment_documents")
+        .select("*")
+        .in("appointment_id", apptIds);
+
+      const apptsWithDocs = appts.map((a) => ({
+        ...a,
+        services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
+        work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
+        parts_cost: (a as any).parts_cost ?? 0,
+        services_cost: (a as any).services_cost ?? 0,
+        documents: docs?.filter((d) => d.appointment_id === a.id) || [],
+      }));
+      setAppointments(apptsWithDocs);
+    }
+
+    const { data: client } = await supabase
+      .from("clients")
+      .select("bonus_points, name")
+      .eq("phone", clientPhone)
+      .maybeSingle();
+    if (client) {
+      setBonusPoints(client.bonus_points || 0);
+      setClientName(client.name || null);
+      const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
+      setNeedsName(!hasFullName);
+    } else {
+      setNeedsName(true);
+    }
+  };
+
+  const loadClientDataByPhone = async (clientPhone: string, name: string) => {
+    setLoading(true);
+    try {
+      await loadAppointmentsByPhone(clientPhone);
+      if (name && /^\S+\s+\S+/.test(name.trim())) {
+        setNeedsName(false);
+        setClientName(name);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadClientData = async (user: TelegramUser) => {
     setLoading(true);
     try {
@@ -171,72 +236,23 @@ export default function CabinetPage() {
         .maybeSingle();
 
       const clientPhone = tgSession?.phone || phone;
-      if (clientPhone) setPhone(clientPhone);
-
-      // Load settings
-      const { data: settings } = await supabase
-        .from("settings")
-        .select("key, value")
-        .in("key", ["max_bonus_payment_percentage", "bonus_percentage"]);
-      if (settings) {
-        const maxPctSetting = settings.find((s) => s.key === "max_bonus_payment_percentage");
-        if (maxPctSetting?.value) setMaxBonusPct(parseFloat(maxPctSetting.value) || 30);
-        const bonusPctSetting = settings.find((s) => s.key === "bonus_percentage");
-        if (bonusPctSetting?.value) setBonusPct(parseFloat(bonusPctSetting.value) || 0);
-      }
-
       if (clientPhone) {
-        const { data: appts } = await supabase
-          .from("appointments")
-          .select("id, car_make, license_plate, service_type, status, created_at, total_price, services, work_items, parts_cost, services_cost")
-          .eq("phone", clientPhone)
-          .order("created_at", { ascending: false })
-          .limit(50);
-
-        if (appts && appts.length > 0) {
-          const apptIds = appts.map((a) => a.id);
-          const { data: docs } = await supabase
-            .from("appointment_documents")
-            .select("*")
-            .in("appointment_id", apptIds);
-
-          const apptsWithDocs = appts.map((a) => ({
-            ...a,
-            services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
-            work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
-            parts_cost: (a as any).parts_cost ?? 0,
-            services_cost: (a as any).services_cost ?? 0,
-            documents: docs?.filter((d) => d.appointment_id === a.id) || [],
-          }));
-          setAppointments(apptsWithDocs);
-        }
-
-        const { data: client } = await supabase
-          .from("clients")
-          .select("bonus_points, name")
-          .eq("phone", clientPhone)
-          .maybeSingle();
-        if (client) {
-          setBonusPoints(client.bonus_points || 0);
-          setClientName(client.name || null);
-          // Check if name has at least 2 words
-          const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
-          setNeedsName(!hasFullName);
-        } else {
-          setNeedsName(true);
-        }
+        setPhone(clientPhone);
+        await loadAppointmentsByPhone(clientPhone);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem("tg_cabinet_user");
     setTgUser(null);
+    setEmailUser(null);
     setAppointments([]);
     setPhone(null);
     setBonusPoints(0);
+    await supabase.auth.signOut();
   };
 
   const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
