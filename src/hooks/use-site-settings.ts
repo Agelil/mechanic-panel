@@ -54,7 +54,7 @@ async function fetchSettings(): Promise<SiteSettings> {
   fetchPromise = supabase
     .from("settings")
     .select("key, value")
-    .then(({ data }) => {
+    .then(({ data }): SiteSettings => {
       const result = { ...DEFAULTS };
       if (data) {
         data.forEach(({ key, value }) => {
