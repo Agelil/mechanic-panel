@@ -743,3 +743,53 @@ function PhoneLinkPrompt({ tgUser, onLinked }: {
     </div>
   );
 }
+
+function NamePrompt({ phone, currentName, onSaved }: {
+  phone: string;
+  currentName: string | null;
+  onSaved: (name: string) => void;
+}) {
+  const [name, setName] = useState(currentName || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) { setError("Введите имя и фамилию"); return; }
+    if (!/^\S+\s+\S+/.test(trimmed)) {
+      setError("Пожалуйста, укажите фамилию для корректного оформления документов");
+      return;
+    }
+    setSaving(true);
+    await supabase.from("clients").update({ name: trimmed }).eq("phone", phone);
+    setSaving(false);
+    onSaved(trimmed);
+  };
+
+  return (
+    <div className="bg-surface border-2 border-orange/50 p-8">
+      <div className="w-14 h-14 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-5">
+        <User className="w-7 h-7 text-orange" />
+      </div>
+      <h3 className="font-display text-2xl tracking-wider mb-2 text-center">УКАЖИТЕ ИМЯ И ФАМИЛИЮ</h3>
+      <p className="font-mono text-sm text-muted-foreground mb-6 text-center">
+        Для корректного оформления документов нам нужны ваши имя и фамилия.
+      </p>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => { setName(e.target.value); setError(""); }}
+        placeholder="Иван Иванов"
+        className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange mb-3"
+      />
+      {error && <p className="font-mono text-xs text-destructive mb-3">{error}</p>}
+      <button
+        onClick={handleSave}
+        disabled={saving || !name.trim()}
+        className="w-full bg-orange text-primary-foreground px-6 py-3 font-mono text-sm hover:bg-orange-bright transition-colors disabled:opacity-50"
+      >
+        {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Сохранить и продолжить"}
+      </button>
+    </div>
+  );
+}
