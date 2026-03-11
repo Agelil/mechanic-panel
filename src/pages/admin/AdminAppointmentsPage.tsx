@@ -376,7 +376,12 @@ export default function AdminAppointmentsPage() {
                       <span className={`inline-flex items-center gap-1.5 font-mono text-xs border px-2 py-1 ${cfg.color}`}>
                         <Icon className="w-3 h-3" />{cfg.label}
                       </span>
-                      {appt.client_notified && (
+                      {notifyingId === appt.id && notifyStatus && (
+                        <span className="inline-flex items-center gap-1 font-mono text-xs border px-2 py-1 text-orange border-orange/30 bg-orange/10 animate-pulse">
+                          <Loader2 className="w-3 h-3 animate-spin" />{notifyStatus}
+                        </span>
+                      )}
+                      {appt.client_notified && notifyingId !== appt.id && (
                         <span className="inline-flex items-center gap-1 font-mono text-xs border px-2 py-1 text-foreground border-border">
                           <Bell className="w-3 h-3" />Клиент оповещён
                         </span>
