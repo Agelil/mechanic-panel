@@ -139,7 +139,12 @@ export default function AdminLayout() {
             <p className="font-display text-sm tracking-widest">
               СЕРВИС<span className="text-orange">-</span>ТОЧКА
             </p>
-            <p className="font-mono text-xs text-muted-foreground">Admin Panel</p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {position === "Мастер" ? "Панель мастера"
+                : position === "Менеджер" ? "Панель менеджера"
+                : position === "Снабженец" ? "Панель снабжения"
+                : "Admin Panel"}
+            </p>
           </div>
         </div>
 
