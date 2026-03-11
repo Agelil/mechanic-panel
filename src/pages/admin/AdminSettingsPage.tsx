@@ -160,6 +160,7 @@ export default function AdminSettingsPage() {
         )
       );
       toast({ title: "✓ Сохранено", description: "Настройки успешно обновлены." });
+      invalidateSiteSettingsCache();
       setDirty(false);
     } catch {
       toast({ title: "Ошибка", description: "Не удалось сохранить настройки.", variant: "destructive" });
