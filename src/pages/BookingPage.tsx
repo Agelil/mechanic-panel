@@ -207,48 +207,7 @@ export default function BookingPage() {
   // Text-based category grouping (fallback)
   const textCategories = Array.from(new Set(services.map((s) => s.category || "Прочее")));
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen pt-16 flex items-center justify-center">
-        <div className="text-center px-4 animate-slide-up">
-          <div className="w-20 h-20 bg-orange/10 border-2 border-orange flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-orange" />
-          </div>
-          <h2 className="font-display text-5xl tracking-wider mb-4">ЗАЯВКА ПРИНЯТА</h2>
-          <p className="font-mono text-muted-foreground mb-2">Спасибо, <span className="text-foreground font-bold">{form.name}</span>!</p>
-          <p className="font-mono text-sm text-muted-foreground mb-8">
-            Мы перезвоним в течение 15 минут на номер <span className="text-foreground">{form.phone}</span>.
-          </p>
-          {selectedServices.length > 0 && (
-            <div className="bg-surface border-2 border-border p-5 mb-6 text-left max-w-sm mx-auto">
-              <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-3">Выбранные услуги</p>
-              {selectedServices.map((s) => (
-                <div key={s.id} className="flex justify-between font-mono text-sm py-1 border-b border-border last:border-0">
-                  <span>{s.name}</span>
-                  <span className="text-orange">от {formatPrice(s.price_from)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between font-display text-xl mt-3 pt-2 text-orange">
-                <span>ИТОГО</span>
-                <span>от {formatPrice(totalMin)}</span>
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => {
-              setSubmitted(false);
-              setForm({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
-              setSelectedServices([]);
-              setSelectedCategory("all");
-            }}
-            className="font-mono text-sm text-orange border border-orange px-6 py-3 hover:bg-orange hover:text-primary-foreground transition-colors"
-          >
-            Оставить ещё одну заявку
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // removed inline success screen — now redirects to /booking-success
 
   return (
     <div className="min-h-screen pt-16">
