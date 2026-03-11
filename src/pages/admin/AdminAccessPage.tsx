@@ -185,8 +185,8 @@ export default function AdminAccessPage() {
     <div>
       <div className="mb-8 flex items-start justify-between">
         <div>
-          <h1 className="font-display text-4xl tracking-wider">УПРАВЛЕНИЕ ДОСТУПОМ</h1>
-          <p className="font-mono text-sm text-muted-foreground">Модерация регистраций из таблицы users_registry</p>
+          <h1 className="font-display text-4xl tracking-wider">ДОСТУП СОТРУДНИКОВ</h1>
+          <p className="font-mono text-sm text-muted-foreground">Модерация заявок от сотрудников на доступ к панели управления</p>
         </div>
         <button
           onClick={load}
