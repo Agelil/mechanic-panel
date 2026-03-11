@@ -21,6 +21,13 @@ interface Client {
   created_at: string;
 }
 
+interface CustomerCar {
+  id: string;
+  user_id: string;
+  brand_model: string;
+  vin: string | null;
+}
+
 interface TelegramUser {
   id: string;
   chat_id: string;
