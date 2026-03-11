@@ -111,12 +111,22 @@ export default function CabinetPage() {
           .select("phone")
           .eq("user_id", session.user.id)
           .maybeSingle();
-        const regPhone = (reg as any)?.phone;
-        if (regPhone) {
-          setPhone(regPhone);
-          loadClientDataByPhone(regPhone, fullName);
+        let foundPhone = (reg as any)?.phone;
+
+        // Fallback: check clients table by name match
+        if (!foundPhone && fullName) {
+          const { data: clientByName } = await supabase
+            .from("clients")
+            .select("phone")
+            .eq("name", fullName.trim())
+            .maybeSingle();
+          if (clientByName?.phone) foundPhone = clientByName.phone;
+        }
+
+        if (foundPhone) {
+          setPhone(foundPhone);
+          loadClientDataByPhone(foundPhone, fullName);
         } else {
-          // Try to find by email in clients
           setLoading(false);
           setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
         }
