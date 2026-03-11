@@ -110,6 +110,8 @@ const initialState: AuthState = {
 };
 
 // ── Context ───────────────────────────────────────────────────────────────────
+const OWNER_EMAIL = "maxfor1997@gmail.com";
+
 interface AuthContextValue {
   status: AuthStatus;
   session: Session | null;
@@ -117,6 +119,7 @@ interface AuthContextValue {
   role: AppRole;
   loading: boolean;
   hasLocalSession: boolean;
+  isOwner: boolean;
   hasPermission: (p: string) => boolean;
   isAtLeast: (min: "master" | "manager" | "admin") => boolean;
   refreshRole: () => Promise<void>;
