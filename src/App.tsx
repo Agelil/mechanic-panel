@@ -1,3 +1,4 @@
+import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,49 +8,6 @@ import { toast } from "@/hooks/use-toast";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-
-// ── React Query с глобальным обработчиком ошибок авторизации ────────────────
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
-      retry: (failureCount, error) => {
-        const msg = String((error as Error)?.message ?? "");
-        // Не ретраить auth-ошибки
-        if (msg.includes("JWT") || msg.includes("401") || msg.includes("403") || msg.includes("PGRST301")) {
-          return false;
-        }
-        return failureCount < 2;
-      },
-    },
-    mutations: {
-      retry: false,
-      onError: (error) => {
-        const msg = String((error as Error)?.message ?? "");
-        // При auth-ошибке в мутации — тихо рефрешим сессию
-        if (msg.includes("JWT") || msg.includes("401") || msg.includes("PGRST301")) {
-          supabase.auth.refreshSession().then(({ data }) => {
-            if (data.session) {
-              // Переинвалидируем все кэши после рефреша
-              queryClient.invalidateQueries();
-            }
-          });
-          return;
-        }
-        toast({
-          title: "Ошибка запроса",
-          description: msg || "Произошла неизвестная ошибка",
-          variant: "destructive",
-        });
-      },
-    },
-  },
-});
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-
-import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 
@@ -79,16 +37,37 @@ import AdminGroupsPage from "@/pages/admin/AdminGroupsPage";
 import AdminSupplyPage from "@/pages/admin/AdminSupplyPage";
 import PendingApprovalPage from "@/components/PendingApprovalPage";
 
+// ── React Query: глобальная конфигурация с обработчиком auth-ошибок ──────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Не ретраить при 403 — это всегда ошибка прав
+      staleTime: 30_000,
+      gcTime:    5 * 60_000,
       retry: (failureCount, error) => {
-        const msg = String(error);
-        if (msg.includes("403") || msg.includes("401") || msg.includes("PGRST301")) return false;
+        const msg = String((error as Error)?.message ?? "");
+        if (msg.includes("JWT") || msg.includes("401") || msg.includes("403") || msg.includes("PGRST301")) {
+          return false;
+        }
         return failureCount < 2;
       },
-      staleTime: 30_000,
+    },
+    mutations: {
+      retry: false,
+      onError: (error) => {
+        const msg = String((error as Error)?.message ?? "");
+        if (msg.includes("JWT") || msg.includes("401") || msg.includes("PGRST301")) {
+          // Auth-ошибка в мутации — тихо обновляем сессию и инвалидируем кэш
+          supabase.auth.refreshSession().then(({ data }) => {
+            if (data.session) queryClient.invalidateQueries();
+          });
+          return;
+        }
+        toast({
+          title: "Ошибка запроса",
+          description: msg || "Произошла неизвестная ошибка",
+          variant: "destructive",
+        });
+      },
     },
   },
 });
@@ -109,7 +88,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        {/* AuthProvider внутри BrowserRouter чтобы useNavigate работал в useAuthGuard */}
+        {/* AuthProvider внутри BrowserRouter — useNavigate работает в useAuthGuard */}
         <AuthProvider>
           <Routes>
             <Route path="/"          element={<PublicLayout><HomePage /></PublicLayout>} />
