@@ -657,6 +657,29 @@ export default function CabinetPage() {
                         </div>
                       )}
 
+                      {/* Cost breakdown */}
+                      {currentAppt.total_price != null && currentAppt.total_price > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border space-y-2">
+                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Расчёт стоимости</p>
+                          {currentAppt.services_cost > 0 && (
+                            <div className="flex justify-between font-mono text-sm">
+                              <span className="text-muted-foreground">Стоимость работ</span>
+                              <span>{formatPrice(currentAppt.services_cost)}</span>
+                            </div>
+                          )}
+                          {currentAppt.parts_cost > 0 && (
+                            <div className="flex justify-between font-mono text-sm">
+                              <span className="text-muted-foreground">Запчасти и материалы</span>
+                              <span>{formatPrice(currentAppt.parts_cost)}</span>
+                            </div>
+                          )}
+                          <div className="border-t border-border/50 pt-2 flex justify-between items-baseline">
+                            <span className="font-mono text-sm font-bold">ИТОГО</span>
+                            <span className="font-display text-xl text-orange">{formatPrice(currentAppt.total_price)}</span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Bonus block */}
                       {bonusPoints > 0 && currentAppt.total_price != null && currentAppt.total_price > 0 && (
                         <div className="mt-4 pt-4 border-t border-border">
