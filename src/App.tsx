@@ -18,6 +18,7 @@ import BookingPage from "@/pages/BookingPage";
 import CabinetPage from "@/pages/CabinetPage";
 import NotFound from "@/pages/NotFound";
 import PrivacyPage from "@/pages/PrivacyPage";
+import BookingSuccessPage from "@/pages/BookingSuccessPage";
 
 import PortfolioDetailPage from "@/pages/PortfolioDetailPage";
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
@@ -99,6 +100,7 @@ const App = () => (
             <Route path="/booking"   element={<PublicLayout><BookingPage /></PublicLayout>} />
             <Route path="/cabinet"   element={<PublicLayout><CabinetPage /></PublicLayout>} />
             <Route path="/privacy"   element={<PublicLayout><PrivacyPage /></PublicLayout>} />
+            <Route path="/booking-success" element={<PublicLayout><BookingSuccessPage /></PublicLayout>} />
 
             <Route path="/admin/login"    element={<AdminLoginPage />} />
             <Route path="/admin/pending"  element={<PendingApprovalPage />} />

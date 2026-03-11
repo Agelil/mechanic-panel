@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +30,7 @@ interface ServiceOption {
 
 export default function BookingPage() {
   const { toast } = useToast();
-  const [submitted, setSubmitted] = useState(false);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -38,7 +39,9 @@ export default function BookingPage() {
   const [form, setForm] = useState({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
   const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [autoFilled, setAutoFilled] = useState(false);
 
+  // Load services + categories
   useEffect(() => {
     Promise.all([
       supabase
@@ -55,6 +58,52 @@ export default function BookingPage() {
       setCategories(catData || []);
     });
   }, []);
+
+  // Auto-fill from TG session's last appointment
+  useEffect(() => {
+    if (autoFilled) return;
+    const saved = localStorage.getItem("tg_cabinet_user");
+    if (!saved) return;
+
+    try {
+      const tgUser = JSON.parse(saved);
+      const now = Math.floor(Date.now() / 1000);
+      if (now - tgUser.auth_date >= 86400) return;
+
+      // Get phone from telegram_sessions
+      supabase
+        .from("telegram_sessions")
+        .select("phone")
+        .eq("telegram_id", tgUser.id)
+        .maybeSingle()
+        .then(({ data: session }) => {
+          const clientPhone = session?.phone;
+          if (!clientPhone) return;
+
+          // Pre-fill name from TG
+          const tgName = `${tgUser.first_name || ""} ${tgUser.last_name || ""}`.trim();
+
+          // Find last appointment for this phone
+          supabase
+            .from("appointments")
+            .select("name, phone, car_make, car_vin")
+            .eq("phone", clientPhone)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data: lastAppt }) => {
+              setForm((prev) => ({
+                ...prev,
+                name: lastAppt?.name || tgName || prev.name,
+                phone: clientPhone || prev.phone,
+                car_make: lastAppt?.car_make || prev.car_make,
+                car_vin: lastAppt?.car_vin || prev.car_vin,
+              }));
+              setAutoFilled(true);
+            });
+        });
+    } catch { /* ignore */ }
+  }, [autoFilled]);
 
   const filteredServices = selectedCategory === "all"
     ? services
@@ -142,7 +191,7 @@ export default function BookingPage() {
         });
       } catch { /* non-critical */ }
 
-      setSubmitted(true);
+      navigate("/booking-success");
     } catch {
       toast({ title: "Ошибка", description: "Не удалось отправить заявку. Попробуйте ещё раз.", variant: "destructive" });
     } finally {
@@ -158,48 +207,7 @@ export default function BookingPage() {
   // Text-based category grouping (fallback)
   const textCategories = Array.from(new Set(services.map((s) => s.category || "Прочее")));
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen pt-16 flex items-center justify-center">
-        <div className="text-center px-4 animate-slide-up">
-          <div className="w-20 h-20 bg-orange/10 border-2 border-orange flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-orange" />
-          </div>
-          <h2 className="font-display text-5xl tracking-wider mb-4">ЗАЯВКА ПРИНЯТА</h2>
-          <p className="font-mono text-muted-foreground mb-2">Спасибо, <span className="text-foreground font-bold">{form.name}</span>!</p>
-          <p className="font-mono text-sm text-muted-foreground mb-8">
-            Мы перезвоним в течение 15 минут на номер <span className="text-foreground">{form.phone}</span>.
-          </p>
-          {selectedServices.length > 0 && (
-            <div className="bg-surface border-2 border-border p-5 mb-6 text-left max-w-sm mx-auto">
-              <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-3">Выбранные услуги</p>
-              {selectedServices.map((s) => (
-                <div key={s.id} className="flex justify-between font-mono text-sm py-1 border-b border-border last:border-0">
-                  <span>{s.name}</span>
-                  <span className="text-orange">от {formatPrice(s.price_from)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between font-display text-xl mt-3 pt-2 text-orange">
-                <span>ИТОГО</span>
-                <span>от {formatPrice(totalMin)}</span>
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => {
-              setSubmitted(false);
-              setForm({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
-              setSelectedServices([]);
-              setSelectedCategory("all");
-            }}
-            className="font-mono text-sm text-orange border border-orange px-6 py-3 hover:bg-orange hover:text-primary-foreground transition-colors"
-          >
-            Оставить ещё одну заявку
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // removed inline success screen — now redirects to /booking-success
 
   return (
     <div className="min-h-screen pt-16">
