@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  BookOpen, Plus, Pencil, Trash2, Save, X, Search, Loader2, FolderOpen, FileText, Users, Shield
+  BookOpen, Plus, Pencil, Trash2, Save, X, Search, Loader2, FolderOpen, FileText, Users, Shield, ImagePlus
 } from "lucide-react";
 
 interface WikiArticle {
@@ -40,6 +40,9 @@ export default function AdminWikiPage() {
   const [editForm, setEditForm] = useState({ title: "", content: "", category: "Общее", visible_to_groups: [] as string[] });
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const load = async () => {
     const [articlesRes, groupsRes] = await Promise.all([
@@ -68,14 +71,12 @@ export default function AdminWikiPage() {
     return m;
   }, [groups]);
 
-  // Unique categories from articles + defaults
   const categories = useMemo(() => {
     const cats = new Set(DEFAULT_CATEGORIES);
     articles.forEach((a) => cats.add(a.category));
     return Array.from(cats).sort();
   }, [articles]);
 
-  // Filtered articles
   const filtered = useMemo(() => {
     let list = articles;
     if (selectedCategory) list = list.filter((a) => a.category === selectedCategory);
@@ -86,7 +87,6 @@ export default function AdminWikiPage() {
     return list;
   }, [articles, selectedCategory, search]);
 
-  // Category counts
   const categoryCounts = useMemo(() => {
     const map: Record<string, number> = {};
     articles.forEach((a) => { map[a.category] = (map[a.category] || 0) + 1; });
@@ -123,6 +123,38 @@ export default function AdminWikiPage() {
         ? p.visible_to_groups.filter((g) => g !== groupId)
         : [...p.visible_to_groups, groupId],
     }));
+  };
+
+  // Image upload handler
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `wiki/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("wiki-images").upload(path, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("wiki-images").getPublicUrl(path);
+
+      // Insert markdown image at cursor position in textarea
+      const textarea = textareaRef.current;
+      const imgMarkdown = `\n![${file.name}](${publicUrl})\n`;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const before = editForm.content.slice(0, start);
+        const after = editForm.content.slice(start);
+        setEditForm((p) => ({ ...p, content: before + imgMarkdown + after }));
+      } else {
+        setEditForm((p) => ({ ...p, content: p.content + imgMarkdown }));
+      }
+      toast({ title: "✓ Изображение загружено" });
+    } catch (err) {
+      toast({ title: "Ошибка загрузки", description: String(err), variant: "destructive" });
+    }
+    setUploadingImage(false);
+    // Reset input
+    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
   const saveArticle = async () => {
@@ -176,9 +208,41 @@ export default function AdminWikiPage() {
     }
   };
 
-  // Simple markdown-like rendering
+  // Markdown rendering with image support
   const renderContent = (text: string) => {
     return text.split("\n").map((line, i) => {
+      // Image: ![alt](url)
+      const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imgMatch) {
+        return (
+          <div key={i} className="my-4">
+            <img
+              src={imgMatch[2]}
+              alt={imgMatch[1]}
+              className="max-w-full h-auto border border-border rounded"
+              loading="lazy"
+            />
+            {imgMatch[1] && <p className="font-mono text-xs text-muted-foreground mt-1">{imgMatch[1]}</p>}
+          </div>
+        );
+      }
+      // Inline images in text
+      const inlineImgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+      if (inlineImgRegex.test(line) && !imgMatch) {
+        const parts: React.ReactNode[] = [];
+        let lastIndex = 0;
+        const regex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        let match;
+        while ((match = regex.exec(line)) !== null) {
+          if (match.index > lastIndex) parts.push(line.slice(lastIndex, match.index));
+          parts.push(
+            <img key={`img-${i}-${match.index}`} src={match[2]} alt={match[1]} className="inline-block max-h-64 border border-border rounded mx-1" loading="lazy" />
+          );
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < line.length) parts.push(line.slice(lastIndex));
+        return <p key={i} className="font-mono text-sm leading-relaxed mb-1">{parts}</p>;
+      }
       if (line.startsWith("### ")) return <h3 key={i} className="font-display text-lg tracking-wider mt-4 mb-2">{line.slice(4)}</h3>;
       if (line.startsWith("## ")) return <h2 key={i} className="font-display text-xl tracking-wider mt-5 mb-2">{line.slice(3)}</h2>;
       if (line.startsWith("# ")) return <h1 key={i} className="font-display text-2xl tracking-wider mt-6 mb-3">{line.slice(2)}</h1>;
@@ -215,9 +279,8 @@ export default function AdminWikiPage() {
       </div>
 
       <div className="flex gap-6 min-h-[60vh]">
-        {/* Left sidebar — categories + article list */}
+        {/* Left sidebar */}
         <div className="w-72 flex-shrink-0 space-y-4">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
@@ -228,7 +291,6 @@ export default function AdminWikiPage() {
             />
           </div>
 
-          {/* Categories */}
           <div className="bg-surface border-2 border-border">
             <div className="px-4 py-3 border-b-2 border-border">
               <h3 className="font-display text-sm tracking-widest text-muted-foreground">КАТЕГОРИИ</h3>
@@ -260,7 +322,6 @@ export default function AdminWikiPage() {
             </div>
           </div>
 
-          {/* Article list */}
           <div className="bg-surface border-2 border-border">
             <div className="px-4 py-3 border-b-2 border-border">
               <h3 className="font-display text-sm tracking-widest text-muted-foreground">СТАТЬИ</h3>
@@ -302,7 +363,6 @@ export default function AdminWikiPage() {
         {/* Main content */}
         <div className="flex-1 bg-surface border-2 border-border">
           {editing ? (
-            /* Editor */
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-display text-2xl tracking-wider">
@@ -336,7 +396,7 @@ export default function AdminWikiPage() {
                 </div>
               </div>
 
-              {/* Group visibility selector */}
+              {/* Group visibility */}
               {canManage && (
                 <div>
                   <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
@@ -371,10 +431,33 @@ export default function AdminWikiPage() {
               )}
 
               <div>
-                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">
-                  Содержание (поддерживается # заголовки, - списки)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest">
+                    Содержание (# заголовки, - списки, ![alt](url) изображения)
+                  </label>
+                  {canManage && (
+                    <>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="flex items-center gap-1.5 font-mono text-xs border border-border px-3 py-1.5 hover:border-orange hover:text-orange transition-colors disabled:opacity-50"
+                      >
+                        {uploadingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+                        Вставить фото
+                      </button>
+                    </>
+                  )}
+                </div>
                 <textarea
+                  ref={textareaRef}
                   value={editForm.content}
                   onChange={(e) => setEditForm((p) => ({ ...p, content: e.target.value }))}
                   rows={18}
@@ -401,7 +484,6 @@ export default function AdminWikiPage() {
               </div>
             </div>
           ) : selectedArticle ? (
-            /* Article view */
             <div className="p-6">
               <div className="flex items-start justify-between mb-6">
                 <div>
@@ -448,7 +530,6 @@ export default function AdminWikiPage() {
               </div>
             </div>
           ) : (
-            /* Empty state */
             <div className="flex items-center justify-center h-full min-h-[40vh]">
               <div className="text-center">
                 <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-20" />
