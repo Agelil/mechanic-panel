@@ -86,6 +86,8 @@ export default function CabinetPage() {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
+  const [needsName, setNeedsName] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("tg_cabinet_user");
