@@ -40,6 +40,7 @@ import AdminAccessPage from "@/pages/admin/AdminAccessPage";
 import AdminSystemPage from "@/pages/admin/AdminSystemPage";
 import AdminGroupsPage from "@/pages/admin/AdminGroupsPage";
 import AdminSupplyPage from "@/pages/admin/AdminSupplyPage";
+import AdminWikiPage from "@/pages/admin/AdminWikiPage";
 import PendingApprovalPage from "@/components/PendingApprovalPage";
 
 // ── React Query: глобальная конфигурация с обработчиком auth-ошибок ──────────
