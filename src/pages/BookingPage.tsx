@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice } from "@/lib/utils";
-import { encryptPII } from "@/lib/encryption";
+
 import {
   Select,
   SelectContent,
@@ -95,17 +95,11 @@ export default function BookingPage() {
 
     try {
       const serviceNames = selectedServices.map((s) => s.name).join(", ");
-      // Encrypt PII fields (ФЗ-152)
-      const encrypted = encryptPII({
+      const { error } = await supabase.from("appointments").insert({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        car_vin: form.car_vin.trim() || null,
-      });
-      const { error } = await supabase.from("appointments").insert({
-        name: encrypted.name,
-        phone: encrypted.phone,
         car_make: form.car_make.trim(),
-        car_vin: encrypted.car_vin,
+        car_vin: form.car_vin.trim() || null,
         service_type: serviceNames,
         services: selectedServices.map((s) => ({ id: s.id, name: s.name, price_from: s.price_from, price_to: s.price_to })),
         total_price: totalMin,
@@ -433,7 +427,7 @@ export default function BookingPage() {
                   <a href="/privacy" target="_blank" className="text-orange hover:underline">
                     обработку персональных данных
                   </a>{" "}
-                  в соответствии с ФЗ-152 «О персональных данных». Данные защищены шифрованием AES-256.
+                  в соответствии с ФЗ-152 «О персональных данных».
                 </span>
               </label>
               {errors.consent && (
