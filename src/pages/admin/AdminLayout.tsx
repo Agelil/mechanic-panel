@@ -22,7 +22,6 @@ const allNavItems = [
   { href: "/admin/reviews",     label: "Отзывы",           icon: Star,                        permission: "view_promotions" },
   { href: "/admin/users",       label: "Пользователи",     icon: UserCog,                     permission: "view_users" },
   { href: "/admin/groups",      label: "Группы и права",   icon: UsersRound,                  permission: "view_groups" },
-  { href: "/admin/permissions", label: "Матрица прав",     icon: Grid3x3,                     permission: "view_permissions" },
   { href: "/admin/access",      label: "Доступ",           icon: ShieldCheck,                 permission: "view_users" },
   { href: "/admin/settings",    label: "Настройки",        icon: Settings,                    permission: "view_settings" },
   { href: "/admin/system",      label: "Система",          icon: ServerCog,                   permission: "edit_settings" },
