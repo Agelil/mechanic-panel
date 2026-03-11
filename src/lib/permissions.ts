@@ -131,6 +131,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: "edit_permissions",         label: "Редактирование прав ролей",      description: "Изменять разрешения для ролей" },
       { key: "view_system",              label: "Системная информация",           description: "Статистика БД, версии, метрики" },
       { key: "view_audit_log",           label: "Журнал аудита",                  description: "Просмотр действий всех пользователей" },
+      { key: "manage_wiki",               label: "Управление базой знаний",        description: "Создание, редактирование и удаление статей Wiki" },
     ],
   },
 ];

@@ -40,6 +40,7 @@ import AdminAccessPage from "@/pages/admin/AdminAccessPage";
 import AdminSystemPage from "@/pages/admin/AdminSystemPage";
 import AdminGroupsPage from "@/pages/admin/AdminGroupsPage";
 import AdminSupplyPage from "@/pages/admin/AdminSupplyPage";
+import AdminWikiPage from "@/pages/admin/AdminWikiPage";
 import PendingApprovalPage from "@/components/PendingApprovalPage";
 
 // ── React Query: глобальная конфигурация с обработчиком auth-ошибок ──────────
@@ -124,6 +125,7 @@ const App = () => (
               <Route path="groups" element={<ProtectedRoute permission="view_groups"><AdminGroupsPage /></ProtectedRoute>} />
               <Route path="supply" element={<ProtectedRoute permission="view_supply"><AdminSupplyPage /></ProtectedRoute>} />
               <Route path="settings" element={<ProtectedRoute permission="view_settings"><AdminSettingsPage /></ProtectedRoute>} />
+              <Route path="wiki" element={<ProtectedRoute permission="view_dashboard"><AdminWikiPage /></ProtectedRoute>} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
