@@ -36,6 +36,8 @@ interface Appointment {
   client_notified: boolean;
   created_at: string;
   client_id: string | null;
+  scheduled_at: string | null;
+  is_paid: boolean;
 }
 
 interface SupplyOrder {
