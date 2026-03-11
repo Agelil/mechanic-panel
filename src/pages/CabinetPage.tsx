@@ -377,9 +377,26 @@ export default function CabinetPage() {
                     <div>
                       <p className="font-display text-2xl tracking-wider">{emailUser.fullName}</p>
                       <p className="font-mono text-xs text-muted-foreground">{emailUser.email}</p>
-                      {phone && (
-                        <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
-                          <Phone className="w-3 h-3" /> {phone}
+                      {editingPhone ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="tel"
+                            value={phoneInput}
+                            onChange={(e) => setPhoneInput(e.target.value)}
+                            className="bg-background border border-border px-2 py-1 font-mono text-xs w-40 focus:outline-none focus:border-orange"
+                            placeholder="+7..."
+                          />
+                          <button onClick={handleSavePhone} disabled={savingPhone} className="text-orange hover:text-orange-bright">
+                            {savingPhone ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                          </button>
+                          <button onClick={() => { setEditingPhone(false); setPhoneInput(phone || ""); }} className="text-muted-foreground hover:text-foreground">
+                            <XCircle className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1 cursor-pointer group" onClick={() => setEditingPhone(true)}>
+                          <Phone className="w-3 h-3" /> {phone || "Добавить телефон"}
+                          <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </p>
                       )}
                     </div>
