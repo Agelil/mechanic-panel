@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, XCircle, Loader2, UserCheck, Shield, Clock, Search } from "lucide-react";
+import {
+  CheckCircle2, XCircle, Loader2, UserCheck, Shield, Clock, Search, UserCog
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/use-user-role";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Profile {
   id: string;
@@ -14,7 +23,14 @@ interface Profile {
   created_at: string;
 }
 
+type AppRole = "admin" | "master" | "manager";
 type FilterType = "pending" | "approved" | "blocked" | "all";
+
+const ROLE_LABELS: Record<AppRole, { label: string; color: string }> = {
+  admin:   { label: "Администратор", color: "text-orange border-orange/30 bg-orange/10" },
+  manager: { label: "Менеджер",      color: "text-blue-400 border-blue-400/30 bg-blue-400/10" },
+  master:  { label: "Мастер",        color: "text-green-400 border-green-400/30 bg-green-400/10" },
+};
 
 export default function AdminAccessPage() {
   const { toast } = useToast();
@@ -24,6 +40,10 @@ export default function AdminAccessPage() {
   const [filter, setFilter] = useState<FilterType>("pending");
   const [search, setSearch] = useState("");
   const [processing, setProcessing] = useState<string | null>(null);
+
+  // Approve dialog state
+  const [approveDialogUserId, setApproveDialogUserId] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<AppRole>("master");
 
   const load = async () => {
     const { data, error } = await supabase
@@ -36,28 +56,63 @@ export default function AdminAccessPage() {
 
   useEffect(() => { load(); }, []);
 
-  const approve = async (userId: string) => {
+  const openApproveDialog = (userId: string) => {
+    setSelectedRole("master");
+    setApproveDialogUserId(userId);
+  };
+
+  const confirmApprove = async () => {
+    if (!approveDialogUserId) return;
+    const userId = approveDialogUserId;
+    setApproveDialogUserId(null);
     setProcessing(userId);
-    const { error } = await supabase
+
+    // 1. Approve profile
+    const { error: profileError } = await supabase
       .from("profiles")
       .update({ is_approved: true, is_blocked: false })
       .eq("user_id", userId);
 
-    if (error) {
-      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    if (profileError) {
+      toast({ title: "Ошибка", description: profileError.message, variant: "destructive" });
+      setProcessing(null);
+      return;
+    }
+
+    // 2. Assign role
+    const { error: roleError } = await supabase
+      .from("user_roles")
+      .upsert({ user_id: userId, role: selectedRole }, { onConflict: "user_id" });
+
+    if (roleError) {
+      toast({
+        title: "Доступ открыт, но роль не назначена",
+        description: `Ошибка: ${roleError.message}`,
+        variant: "destructive",
+      });
     } else {
-      setProfiles((p) => p.map((pr) => pr.user_id === userId ? { ...pr, is_approved: true, is_blocked: false } : pr));
-      toast({ title: "Одобрено", description: "Пользователь получил доступ к системе." });
-      const { data: { session } } = await supabase.auth.getSession();
-      await supabase.from("security_audit_log").insert({
-        user_id: session?.user?.id,
-        user_email: session?.user?.email,
-        action: "approve_user",
-        target_table: "profiles",
-        target_id: userId,
-        details: { approved_user_id: userId },
+      setProfiles((p) =>
+        p.map((pr) =>
+          pr.user_id === userId ? { ...pr, is_approved: true, is_blocked: false } : pr
+        )
+      );
+      toast({
+        title: "Пользователь одобрен",
+        description: `Роль «${ROLE_LABELS[selectedRole].label}» назначена.`,
       });
     }
+
+    // 3. Audit log
+    const { data: { session } } = await supabase.auth.getSession();
+    await supabase.from("security_audit_log").insert({
+      user_id: session?.user?.id,
+      user_email: session?.user?.email,
+      action: "approve_user",
+      target_table: "profiles",
+      target_id: userId,
+      details: { approved_user_id: userId, assigned_role: selectedRole },
+    });
+
     setProcessing(null);
   };
 
@@ -71,7 +126,11 @@ export default function AdminAccessPage() {
     if (error) {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
     } else {
-      setProfiles((p) => p.map((pr) => pr.user_id === userId ? { ...pr, is_approved: false, is_blocked: true } : pr));
+      setProfiles((p) =>
+        p.map((pr) =>
+          pr.user_id === userId ? { ...pr, is_approved: false, is_blocked: true } : pr
+        )
+      );
       toast({ title: "Заблокировано", description: "Пользователю закрыт доступ.", variant: "destructive" });
       const { data: { session } } = await supabase.auth.getSession();
       await supabase.from("security_audit_log").insert({
@@ -87,17 +146,17 @@ export default function AdminAccessPage() {
   };
 
   const counts = {
-    all: profiles.length,
+    all:     profiles.length,
     pending: profiles.filter((p) => !p.is_approved && !p.is_blocked).length,
-    approved: profiles.filter((p) => p.is_approved && !p.is_blocked).length,
+    approved:profiles.filter((p) => p.is_approved && !p.is_blocked).length,
     blocked: profiles.filter((p) => p.is_blocked).length,
   };
 
   const filtered = profiles
     .filter((p) => {
-      if (filter === "pending") return !p.is_approved && !p.is_blocked;
+      if (filter === "pending")  return !p.is_approved && !p.is_blocked;
       if (filter === "approved") return p.is_approved && !p.is_blocked;
-      if (filter === "blocked") return p.is_blocked;
+      if (filter === "blocked")  return p.is_blocked;
       return true;
     })
     .filter((p) => {
@@ -118,10 +177,10 @@ export default function AdminAccessPage() {
   }
 
   const STAT_ITEMS = [
-    { key: "pending" as const, label: "Ожидают", icon: Clock, activeClass: "text-orange border-orange" },
-    { key: "approved" as const, label: "Одобрены", icon: CheckCircle2, activeClass: "text-green-400 border-green-400" },
-    { key: "blocked" as const, label: "Заблокированы", icon: XCircle, activeClass: "text-destructive border-destructive" },
-    { key: "all" as const, label: "Всего", icon: UserCheck, activeClass: "text-muted-foreground border-muted-foreground" },
+    { key: "pending"  as const, label: "Ожидают",      icon: Clock,       activeClass: "text-orange border-orange" },
+    { key: "approved" as const, label: "Одобрены",     icon: CheckCircle2,activeClass: "text-green-400 border-green-400" },
+    { key: "blocked"  as const, label: "Заблокированы",icon: XCircle,     activeClass: "text-destructive border-destructive" },
+    { key: "all"      as const, label: "Всего",         icon: UserCheck,   activeClass: "text-muted-foreground border-muted-foreground" },
   ];
 
   return (
@@ -203,10 +262,9 @@ export default function AdminAccessPage() {
               <div className="flex gap-2 flex-shrink-0">
                 {!profile.is_approved && (
                   <button
-                    onClick={() => approve(profile.user_id)}
+                    onClick={() => openApproveDialog(profile.user_id)}
                     disabled={processing === profile.user_id}
-                    className="flex items-center gap-1.5 font-mono text-xs border-2 border-border text-muted-foreground px-3 py-2 hover:border-border hover:text-foreground transition-colors disabled:opacity-50"
-                    style={{ borderColor: "hsl(var(--border))" }}
+                    className="flex items-center gap-1.5 font-mono text-xs border-2 border-border px-3 py-2 hover:border-orange hover:text-orange transition-colors disabled:opacity-50"
                   >
                     {processing === profile.user_id ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -232,7 +290,7 @@ export default function AdminAccessPage() {
                 )}
                 {profile.is_blocked && (
                   <button
-                    onClick={() => approve(profile.user_id)}
+                    onClick={() => openApproveDialog(profile.user_id)}
                     disabled={processing === profile.user_id}
                     className="flex items-center gap-1.5 font-mono text-xs border-2 border-orange/40 text-orange px-3 py-2 hover:bg-orange/10 transition-colors disabled:opacity-50"
                   >
@@ -249,6 +307,88 @@ export default function AdminAccessPage() {
           ))}
         </div>
       )}
+
+      {/* ── Approve Dialog ── */}
+      {approveDialogUserId && (() => {
+        const profile = profiles.find((p) => p.user_id === approveDialogUserId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <div className="bg-surface border-2 border-border shadow-brutal w-full max-w-sm p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
+                  <UserCog className="w-4 h-4 text-orange" />
+                </div>
+                <div>
+                  <h3 className="font-display text-xl tracking-wider">ОДОБРИТЬ ДОСТУП</h3>
+                  <p className="font-mono text-xs text-muted-foreground">{profile?.email}</p>
+                </div>
+              </div>
+
+              {profile?.full_name && (
+                <p className="font-mono text-sm mb-4">
+                  <span className="text-muted-foreground">Имя: </span>{profile.full_name}
+                </p>
+              )}
+
+              <div className="mb-5">
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
+                  Назначить роль
+                </label>
+                <Select
+                  value={selectedRole}
+                  onValueChange={(v) => setSelectedRole(v as AppRole)}
+                >
+                  <SelectTrigger className="w-full bg-background border-2 border-border font-mono text-sm rounded-none h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="master" className="font-mono text-sm">
+                      <div className="flex flex-col gap-0.5">
+                        <span>Мастер</span>
+                        <span className="text-xs text-muted-foreground">Просмотр и изменение статусов заявок</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="manager" className="font-mono text-sm">
+                      <div className="flex flex-col gap-0.5">
+                        <span>Менеджер</span>
+                        <span className="text-xs text-muted-foreground">Услуги, портфолио, акции</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="admin" className="font-mono text-sm">
+                      <div className="flex flex-col gap-0.5">
+                        <span>Администратор</span>
+                        <span className="text-xs text-muted-foreground">Полный доступ ко всем разделам</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className={`mt-2 px-3 py-2 border font-mono text-xs ${ROLE_LABELS[selectedRole].color}`}>
+                  {selectedRole === "master"  && "Мастер сможет просматривать и обновлять статусы заявок"}
+                  {selectedRole === "manager" && "Менеджер получит доступ к услугам, портфолио и акциям"}
+                  {selectedRole === "admin"   && "Администратор получит полный доступ ко всем разделам"}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setApproveDialogUserId(null)}
+                  className="flex-1 font-mono text-sm border-2 border-border py-2.5 hover:border-muted-foreground transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={confirmApprove}
+                  className="flex-1 bg-orange text-primary-foreground font-mono text-sm py-2.5 flex items-center justify-center gap-2 hover:bg-orange-bright transition-colors"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Одобрить
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
