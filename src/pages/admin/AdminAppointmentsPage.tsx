@@ -204,7 +204,7 @@ export default function AdminAppointmentsPage() {
       // Accrue bonuses only on "completed" (final status) to avoid double-accrual
       if (status === "completed") {
         try {
-          await accrueBonus(updatedAppt);
+          await accrueBonus(updatedAppt, resolvedClientId || undefined);
         } catch { /* non-critical */ }
       }
     }

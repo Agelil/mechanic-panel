@@ -108,12 +108,13 @@ export default function AdminClientsPage() {
     setBonusAdjust("");
     setBonusAdjustNote("");
 
-    const decPhone = decrypt(client.phone);
-    const [{ data: appts }, { data: bonusTx }] = await Promise.all([
+    // Query appointments by client_id (reliable FK link set at appointment completion)
+    // Also fetch bonus transaction history in parallel
+    const [{ data: apptsByClientId }, { data: bonusTx }] = await Promise.all([
       supabase
         .from("appointments")
         .select("id, car_make, car_vin, license_plate, service_type, status, created_at, total_price, work_items, services")
-        .eq("phone", client.phone)
+        .eq("client_id", client.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("bonus_transactions")
@@ -123,15 +124,34 @@ export default function AdminClientsPage() {
         .limit(50),
     ]);
 
-    // Also try matching by decrypted phone if encrypted didn't match
-    let finalAppts = appts || [];
-    if (finalAppts.length === 0 && decPhone) {
-      const { data: appts2 } = await supabase
-        .from("appointments")
-        .select("id, car_make, car_vin, license_plate, service_type, status, created_at, total_price, work_items, services")
-        .eq("phone", decPhone)
-        .order("created_at", { ascending: false });
-      finalAppts = appts2 || [];
+    let finalAppts = apptsByClientId || [];
+
+    // Fallback: if no results via client_id (legacy records), try matching by decrypted phone
+    if (finalAppts.length === 0) {
+      const decPhone = decrypt(client.phone);
+      if (decPhone) {
+        // Fetch all appointments and filter client-side by decrypted phone
+        const { data: allAppts } = await supabase
+          .from("appointments")
+          .select("id, car_make, car_vin, license_plate, service_type, status, created_at, total_price, work_items, services, phone")
+          .order("created_at", { ascending: false })
+          .limit(1000);
+
+        if (allAppts) {
+          const { decrypt: dec } = await import("@/lib/encryption");
+          finalAppts = allAppts.filter((a) => dec(a.phone) === decPhone);
+
+          // Backfill client_id on matched legacy appointments
+          if (finalAppts.length > 0) {
+            const ids = finalAppts.map((a) => a.id);
+            supabase
+              .from("appointments")
+              .update({ client_id: client.id })
+              .in("id", ids)
+              .then(() => {});
+          }
+        }
+      }
     }
 
     setClientHistory(finalAppts as AppointmentRecord[]);
