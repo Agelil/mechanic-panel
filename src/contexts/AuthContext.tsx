@@ -20,20 +20,41 @@ import {
 // ── Types ────────────────────────────────────────────────────────────────────
 export type AppRole = "admin" | "master" | "manager" | null;
 
+// DB-driven permissions — loaded per user based on their role
+// This map is populated after role is fetched
+const dbPermissionsCache = new Map<string, Set<string>>(); // userId → Set<permission>
+
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: [
-    "view_dashboard", "view_appointments", "edit_appointments",
-    "view_services", "edit_services", "view_portfolio", "edit_portfolio",
-    "view_promotions", "edit_promotions", "view_clients", "edit_clients",
-    "view_settings", "edit_settings", "view_categories", "edit_categories",
-    "view_users", "edit_users",
+    "view_dashboard", "view_appointments", "edit_appointments", "delete_appointments",
+    "view_appointment_price", "edit_appointment_status", "edit_appointment_services",
+    "view_supply", "create_supply_order", "edit_supply_order", "approve_supply_order", "delete_supply_order",
+    "view_services", "edit_services", "delete_services", "edit_service_price",
+    "view_categories", "edit_categories", "delete_categories",
+    "view_portfolio", "edit_portfolio", "delete_portfolio", "publish_portfolio",
+    "view_promotions", "edit_promotions", "delete_promotions",
+    "view_clients", "edit_clients", "delete_clients", "view_client_history",
+    "view_reviews", "edit_reviews", "publish_reviews", "delete_reviews",
+    "view_users", "edit_users", "approve_user", "block_user", "assign_role",
+    "view_settings", "edit_settings", "edit_contacts", "edit_telegram_settings", "edit_integrations",
+    "view_system", "view_audit_log",
+    "view_groups", "edit_groups", "delete_groups",
+    "view_permissions", "edit_permissions",
+    "view_revenue", "view_prices",
   ],
   manager: [
-    "view_dashboard", "view_appointments",
-    "view_services", "edit_services", "view_portfolio", "edit_portfolio",
-    "view_promotions", "edit_promotions", "view_categories", "edit_categories",
+    "view_dashboard", "view_appointments", "edit_appointments", "edit_appointment_status",
+    "edit_appointment_services", "view_appointment_price",
+    "view_supply", "create_supply_order", "edit_supply_order", "approve_supply_order",
+    "view_services", "edit_services", "edit_service_price",
+    "view_categories", "edit_categories",
+    "view_portfolio", "edit_portfolio", "publish_portfolio",
+    "view_promotions", "edit_promotions",
+    "view_clients", "edit_clients", "view_client_history",
+    "view_reviews", "publish_reviews",
+    "view_users", "view_settings", "view_revenue", "view_prices",
   ],
-  master: ["view_dashboard", "view_appointments", "edit_appointments"],
+  master: ["view_dashboard", "view_appointments", "edit_appointment_status", "view_supply", "create_supply_order"],
 };
 
 // ── State Machine ─────────────────────────────────────────────────────────────
@@ -130,6 +151,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (DEV) console.log("[Auth] Role from sessionStorage cache:", cached);
         dispatch({ type: "ROLE_SET", role: cached as AppRole });
         roleFetchedRef.current = userId;
+        // Still load permissions from DB in background
+        supabase
+          .from("role_permissions")
+          .select("permission")
+          .eq("role", cached as "admin" | "manager" | "master")
+          .then(({ data }) => {
+            if (data) dbPermissionsCache.set(userId, new Set(data.map((d: { permission: string }) => d.permission)));
+          });
         return;
       }
     }
@@ -156,8 +185,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (DEV) console.log("[Auth] Role from DB:", r);
     dispatch({ type: "ROLE_SET", role: r });
     roleFetchedRef.current = userId;
-    if (r) cacheRole(userId, r);
-    else clearRoleCache();
+    if (r) {
+      cacheRole(userId, r);
+      // Load granular permissions from role_permissions table
+      const { data: permsData } = await supabase
+        .from("role_permissions")
+        .select("permission")
+        .eq("role", r);
+      if (permsData) {
+        dbPermissionsCache.set(userId, new Set(permsData.map((d: { permission: string }) => d.permission)));
+        if (DEV) console.log("[Auth] Loaded", permsData.length, "permissions for role:", r);
+      }
+    } else {
+      clearRoleCache();
+      dbPermissionsCache.delete(userId);
+    }
   }, []);
 
   const refreshRole = useCallback(async () => {
@@ -314,6 +356,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { role } = state;
     if (!role) return false;
     if (role === "admin") return true;
+    // Use DB-loaded permissions cache if available, fall back to static map
+    const userId = currentUserIdRef.current;
+    if (userId && dbPermissionsCache.has(userId)) {
+      return dbPermissionsCache.get(userId)!.has(permission);
+    }
     return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
   }, [state.role]);
 
