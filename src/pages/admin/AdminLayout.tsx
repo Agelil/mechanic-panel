@@ -35,33 +35,43 @@ export default function AdminLayout() {
   const { role, loading: roleLoading, hasPermission } = useUserRole();
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!session) { navigate("/admin/login"); setAuthLoading(false); return; }
-      setUserEmail(session.user.email || "");
-      // Check approval
+    const checkProfile = async (userId: string) => {
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_approved, is_blocked")
-        .eq("user_id", session.user.id)
+        .eq("user_id", userId)
         .maybeSingle();
       if (profile && (!profile.is_approved || profile.is_blocked)) {
         navigate("/admin/pending");
       }
-      setAuthLoading(false);
-    });
+    };
+
+    // Сначала получаем текущую сессию
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { navigate("/admin/login"); setAuthLoading(false); return; }
-      setUserEmail(session?.user?.email || "");
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_approved, is_blocked")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (profile && (!profile.is_approved || profile.is_blocked)) {
-        navigate("/admin/pending");
+      if (!session) {
+        navigate("/admin/login");
+        setAuthLoading(false);
+        return;
       }
+      setUserEmail(session.user.email || "");
+      await checkProfile(session.user.id);
       setAuthLoading(false);
     });
+
+    // Слушаем только реальные изменения сессии (логаут, истечение токена)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT") {
+        navigate("/admin/login");
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (session) {
+          setUserEmail(session.user.email || "");
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleLogout = async () => {
