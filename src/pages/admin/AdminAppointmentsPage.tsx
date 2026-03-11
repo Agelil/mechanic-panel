@@ -146,10 +146,9 @@ export default function AdminAppointmentsPage() {
     return clientId;
   };
 
-  const accrueBonus = async (appt: Appointment) => {
+  const accrueBonus = async (appt: Appointment, clientId?: string) => {
     if (!appt.total_price || appt.total_price <= 0) return;
     try {
-      // Fetch bonus_percentage from settings
       const { data: setting } = await supabase
         .from("settings")
         .select("value")
@@ -161,11 +160,14 @@ export default function AdminAppointmentsPage() {
       const bonusAmount = Math.floor(appt.total_price * pct / 100);
       if (bonusAmount <= 0) return;
 
-      // Find the client by phone
+      // Use clientId passed in (from upsertClient), or fall back to appointment's client_id
+      const resolvedClientId = clientId || appt.client_id;
+      if (!resolvedClientId) return;
+
       const { data: client } = await supabase
         .from("clients")
         .select("id, bonus_points")
-        .eq("phone", appt.phone)
+        .eq("id", resolvedClientId)
         .maybeSingle();
 
       if (!client) return;
@@ -195,8 +197,9 @@ export default function AdminAppointmentsPage() {
 
     // Auto-create/update client on terminal statuses
     if (["ready", "completed"].includes(status)) {
+      let resolvedClientId: string | null = null;
       try {
-        await upsertClient(updatedAppt);
+        resolvedClientId = await upsertClient(updatedAppt);
       } catch { /* non-critical */ }
       // Accrue bonuses only on "completed" (final status) to avoid double-accrual
       if (status === "completed") {
