@@ -71,6 +71,21 @@ export function getEncryptionKey(): string {
   return ls.encryption_key || DEFAULT_CONFIG.encryption_key || "SERVICE_TOCHKA_DEFAULT_KEY_2024";
 }
 
+/** Returns all known encryption keys to try during decryption (handles key rotation) */
+export function getAllEncryptionKeys(): string[] {
+  const keys = new Set<string>();
+  const ls = getConfigFromStorage();
+  if (ls.encryption_key) keys.add(ls.encryption_key);
+  if (DEFAULT_CONFIG.encryption_key) keys.add(DEFAULT_CONFIG.encryption_key);
+  keys.add("SERVICE_TOCHKA_DEFAULT_KEY_2024");
+  // Also try key from sessionStorage (set by settings page)
+  try {
+    const dbKey = sessionStorage.getItem("encryption_key_from_db");
+    if (dbKey) keys.add(dbKey);
+  } catch { /* ignore */ }
+  return Array.from(keys);
+}
+
 // Ping a Supabase URL to test connection
 export async function pingSupabase(url: string, key: string): Promise<{ ok: boolean; latency: number; error?: string }> {
   const start = Date.now();
