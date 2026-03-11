@@ -30,7 +30,7 @@ interface ServiceOption {
 
 export default function BookingPage() {
   const { toast } = useToast();
-  const [submitted, setSubmitted] = useState(false);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -39,7 +39,9 @@ export default function BookingPage() {
   const [form, setForm] = useState({ name: "", phone: "", car_make: "", car_vin: "", message: "" });
   const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [autoFilled, setAutoFilled] = useState(false);
 
+  // Load services + categories
   useEffect(() => {
     Promise.all([
       supabase
@@ -56,6 +58,52 @@ export default function BookingPage() {
       setCategories(catData || []);
     });
   }, []);
+
+  // Auto-fill from TG session's last appointment
+  useEffect(() => {
+    if (autoFilled) return;
+    const saved = localStorage.getItem("tg_cabinet_user");
+    if (!saved) return;
+
+    try {
+      const tgUser = JSON.parse(saved);
+      const now = Math.floor(Date.now() / 1000);
+      if (now - tgUser.auth_date >= 86400) return;
+
+      // Get phone from telegram_sessions
+      supabase
+        .from("telegram_sessions")
+        .select("phone")
+        .eq("telegram_id", tgUser.id)
+        .maybeSingle()
+        .then(({ data: session }) => {
+          const clientPhone = session?.phone;
+          if (!clientPhone) return;
+
+          // Pre-fill name from TG
+          const tgName = `${tgUser.first_name || ""} ${tgUser.last_name || ""}`.trim();
+
+          // Find last appointment for this phone
+          supabase
+            .from("appointments")
+            .select("name, phone, car_make, car_vin")
+            .eq("phone", clientPhone)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data: lastAppt }) => {
+              setForm((prev) => ({
+                ...prev,
+                name: lastAppt?.name || tgName || prev.name,
+                phone: clientPhone || prev.phone,
+                car_make: lastAppt?.car_make || prev.car_make,
+                car_vin: lastAppt?.car_vin || prev.car_vin,
+              }));
+              setAutoFilled(true);
+            });
+        });
+    } catch { /* ignore */ }
+  }, [autoFilled]);
 
   const filteredServices = selectedCategory === "all"
     ? services
