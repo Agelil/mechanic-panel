@@ -58,6 +58,9 @@ export default function AppointmentFinancialBlock({
   const [generatingDoc, setGeneratingDoc] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);
   const [selectedCatalogId, setSelectedCatalogId] = useState("");
+  const [directPartsCost, setDirectPartsCost] = useState<number>(0);
+  const [directServicesCost, setDirectServicesCost] = useState<number>(0);
+  const [useDirectInput, setUseDirectInput] = useState(false);
 
   // Reactive totals
   const { partsCost, servicesCost, grandTotal } = useMemo(() => {
