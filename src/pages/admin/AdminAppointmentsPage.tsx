@@ -599,6 +599,8 @@ export default function AdminAppointmentsPage() {
           })}
         </div>
       )}
+      </>
+      )}
     </div>
   );
 }
