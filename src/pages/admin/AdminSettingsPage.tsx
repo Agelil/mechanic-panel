@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Save, Loader2, CheckCircle2, Bot, Hash, Bell, Link as LinkIcon,
   Copy, Sheet, ToggleLeft, ToggleRight, Users, Phone, MapPin, Clock,
-  Globe, Search, Share2, Settings2, ChevronDown, ChevronRight
+  Globe, Search, Share2, Settings2, ChevronDown, ChevronRight, Star
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateSiteSettingsCache } from "@/hooks/use-site-settings";
