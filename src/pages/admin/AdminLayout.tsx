@@ -24,6 +24,7 @@ const allNavItems = [
   { href: "/admin/groups",      label: "Группы и права",   icon: UsersRound,                  permission: "view_groups" },
   { href: "/admin/access",      label: "Доступ",           icon: ShieldCheck,                 permission: "view_users" },
   { href: "/admin/settings",    label: "Настройки",        icon: Settings,                    permission: "view_settings" },
+  { href: "/admin/wiki",        label: "База знаний",      icon: BookOpen,                    permission: "view_dashboard" },
   { href: "/admin/system",      label: "Система",          icon: ServerCog,                   permission: "edit_settings" },
 ];
 

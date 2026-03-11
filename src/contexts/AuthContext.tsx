@@ -41,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "view_groups", "edit_groups", "delete_groups",
     "view_permissions", "edit_permissions",
     "view_revenue", "view_prices",
+    "manage_wiki",
   ],
   manager: [
     "view_dashboard", "view_appointments", "edit_appointments", "edit_appointment_status",
