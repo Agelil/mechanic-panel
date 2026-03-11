@@ -880,6 +880,7 @@ export type Database = {
           is_blocked: boolean
           notes: string | null
           phone: string | null
+          position: string | null
           role: string | null
           source: string
           telegram_chat_id: string | null
@@ -896,6 +897,7 @@ export type Database = {
           is_blocked?: boolean
           notes?: string | null
           phone?: string | null
+          position?: string | null
           role?: string | null
           source?: string
           telegram_chat_id?: string | null
@@ -912,6 +914,7 @@ export type Database = {
           is_blocked?: boolean
           notes?: string | null
           phone?: string | null
+          position?: string | null
           role?: string | null
           source?: string
           telegram_chat_id?: string | null

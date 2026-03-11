@@ -1,0 +1,1 @@
+ALTER TABLE public.users_registry ADD COLUMN IF NOT EXISTS position text;
