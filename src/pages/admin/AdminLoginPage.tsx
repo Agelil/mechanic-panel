@@ -22,8 +22,6 @@ export default function AdminLoginPage() {
 
   // Register fields
   const [regFullName, setRegFullName] = useState("");
-  const [regCarMake, setRegCarMake] = useState("");
-  const [regCarVin, setRegCarVin] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regPassword2, setRegPassword2] = useState("");
