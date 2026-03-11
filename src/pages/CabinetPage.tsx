@@ -675,10 +675,10 @@ export default function CabinetPage() {
                         </div>
                       )}
 
-                      {/* Documents */}
+                      {/* Documents / Files */}
                       {currentAppt.documents && currentAppt.documents.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-border">
-                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Документы</p>
+                          <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Файлы и акты</p>
                           <div className="space-y-2">
                             {currentAppt.documents.map((doc) => (
                               <a
@@ -686,10 +686,14 @@ export default function CabinetPage() {
                                 href={doc.file_url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright transition-colors"
+                                download={doc.file_name}
+                                className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright transition-colors border border-border hover:border-orange px-3 py-2"
                               >
-                                <Download className="w-3 h-3" />
-                                {DOC_TYPE_LABELS[doc.doc_type] || doc.file_name}
+                                <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="truncate">{DOC_TYPE_LABELS[doc.doc_type] || doc.file_name}</span>
+                                <span className="text-muted-foreground ml-auto flex-shrink-0">
+                                  {new Date(doc.created_at).toLocaleDateString("ru-RU")}
+                                </span>
                               </a>
                             ))}
                           </div>
