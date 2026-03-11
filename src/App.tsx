@@ -19,6 +19,7 @@ import CabinetPage from "@/pages/CabinetPage";
 import NotFound from "@/pages/NotFound";
 import PrivacyPage from "@/pages/PrivacyPage";
 
+import PortfolioDetailPage from "@/pages/PortfolioDetailPage";
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
