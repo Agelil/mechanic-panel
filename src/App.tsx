@@ -1,5 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -108,21 +109,21 @@ const App = () => (
 
             <Route path="/admin/login"    element={<AdminLoginPage />} />
             <Route path="/admin/pending"  element={<PendingApprovalPage />} />
-            <Route path="/admin"          element={<AdminLayout />}>
-              <Route index                element={<AdminDashboard />} />
-              <Route path="services"      element={<AdminServicesPage />} />
-              <Route path="categories"    element={<AdminCategoriesPage />} />
-              <Route path="portfolio"     element={<AdminPortfolioPage />} />
-              <Route path="appointments"  element={<AdminAppointmentsPage />} />
-              <Route path="promotions"    element={<AdminPromotionsPage />} />
-              <Route path="clients"       element={<AdminClientsPage />} />
-              <Route path="users"         element={<AdminUsersPage />} />
-              <Route path="reviews"       element={<AdminReviewsPage />} />
-              <Route path="access"        element={<AdminAccessPage />} />
-              <Route path="system"        element={<AdminSystemPage />} />
-              <Route path="groups"        element={<AdminGroupsPage />} />
-              <Route path="supply"        element={<AdminSupplyPage />} />
-              <Route path="settings"      element={<AdminSettingsPage />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<ProtectedRoute permission="view_dashboard"><AdminDashboard /></ProtectedRoute>} />
+              <Route path="services" element={<ProtectedRoute permission="view_services"><AdminServicesPage /></ProtectedRoute>} />
+              <Route path="categories" element={<ProtectedRoute permission="view_categories"><AdminCategoriesPage /></ProtectedRoute>} />
+              <Route path="portfolio" element={<ProtectedRoute permission="view_portfolio"><AdminPortfolioPage /></ProtectedRoute>} />
+              <Route path="appointments" element={<ProtectedRoute permission="view_appointments"><AdminAppointmentsPage /></ProtectedRoute>} />
+              <Route path="promotions" element={<ProtectedRoute permission="view_promotions"><AdminPromotionsPage /></ProtectedRoute>} />
+              <Route path="clients" element={<ProtectedRoute permission="view_clients"><AdminClientsPage /></ProtectedRoute>} />
+              <Route path="users" element={<ProtectedRoute permission="view_users"><AdminUsersPage /></ProtectedRoute>} />
+              <Route path="reviews" element={<ProtectedRoute permission="view_reviews"><AdminReviewsPage /></ProtectedRoute>} />
+              <Route path="access" element={<ProtectedRoute permission="view_users"><AdminAccessPage /></ProtectedRoute>} />
+              <Route path="system" element={<ProtectedRoute permission="view_system"><AdminSystemPage /></ProtectedRoute>} />
+              <Route path="groups" element={<ProtectedRoute permission="view_groups"><AdminGroupsPage /></ProtectedRoute>} />
+              <Route path="supply" element={<ProtectedRoute permission="view_supply"><AdminSupplyPage /></ProtectedRoute>} />
+              <Route path="settings" element={<ProtectedRoute permission="view_settings"><AdminSettingsPage /></ProtectedRoute>} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
