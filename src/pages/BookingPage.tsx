@@ -191,7 +191,7 @@ export default function BookingPage() {
         });
       } catch { /* non-critical */ }
 
-      setSubmitted(true);
+      navigate("/booking-success");
     } catch {
       toast({ title: "Ошибка", description: "Не удалось отправить заявку. Попробуйте ещё раз.", variant: "destructive" });
     } finally {
