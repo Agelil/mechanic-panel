@@ -163,7 +163,7 @@ export default function AdminPortfolioPage() {
   };
   const removePart = (i: number) => setForm((prev) => ({ ...prev, parts_list: (prev.parts_list ?? []).filter((_, j) => j !== i) }));
 
-  const FormUI = () => (
+  const formUI = (
     <div className="bg-surface border-2 border-orange p-6 mb-4">
       <h3 className="font-display text-xl tracking-wider mb-5 text-orange">
         {creating ? "Добавить работу" : "Редактировать"}
