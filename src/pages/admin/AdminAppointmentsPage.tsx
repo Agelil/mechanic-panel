@@ -197,6 +197,9 @@ export default function AdminAppointmentsPage() {
     } catch { /* non-critical */ }
   };
 
+  const [notifyingId, setNotifyingId] = useState<string | null>(null);
+  const [notifyStatus, setNotifyStatus] = useState<string | null>(null);
+
   const updateStatus = async (id: string, status: string) => {
     await supabase.from("appointments").update({ status }).eq("id", id);
     const appt = appointments.find((a) => a.id === id);
@@ -211,7 +214,6 @@ export default function AdminAppointmentsPage() {
       try {
         resolvedClientId = await upsertClient(updatedAppt);
       } catch { /* non-critical */ }
-      // Accrue bonuses only on "completed" (final status) to avoid double-accrual
       if (status === "completed") {
         try {
           await accrueBonus(updatedAppt, resolvedClientId || undefined);
@@ -219,14 +221,38 @@ export default function AdminAppointmentsPage() {
       }
     }
 
+    // Cascading notifications with status indicator
     try {
-      await supabase.functions.invoke("send-telegram-notification", {
+      setNotifyingId(id);
+      setNotifyStatus("Уведомления отправляются...");
+      const { data: notifyResult } = await supabase.functions.invoke("send-telegram-notification", {
         body: { type: "status_changed", appointment_id: id, new_status: status, appointment: updatedAppt },
       });
-      if (NOTIFY_STATUSES.includes(status)) {
-        toast({ title: "Уведомление отправлено", description: "Клиент уведомлён об изменении статуса" });
+      
+      const result = notifyResult as { master_sent?: boolean; client_sent?: boolean; master_error?: string; client_error?: string } | null;
+      if (result?.master_error) {
+        console.error("[Telegram] Ошибка отправки мастеру:", result.master_error);
       }
-    } catch { /* non-critical */ }
+      if (result?.client_error) {
+        console.error("[Telegram] Ошибка отправки клиенту:", result.client_error);
+      }
+
+      const parts: string[] = [];
+      if (result?.master_sent) parts.push("мастеру ✓");
+      if (result?.client_sent) parts.push("клиенту ✓");
+      
+      if (parts.length > 0) {
+        setNotifyStatus(`Уведомления доставлены: ${parts.join(", ")}`);
+        toast({ title: "Уведомления доставлены", description: parts.join(", ") });
+      } else {
+        setNotifyStatus("Уведомления отправлены");
+      }
+      
+      setTimeout(() => { setNotifyingId(null); setNotifyStatus(null); }, 4000);
+    } catch {
+      setNotifyStatus(null);
+      setNotifyingId(null);
+    }
 
     try {
       await supabase.functions.invoke("sync-google-sheets", {
