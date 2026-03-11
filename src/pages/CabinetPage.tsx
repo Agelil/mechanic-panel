@@ -5,8 +5,16 @@ import {
   Car, FileText, Star, Clock, CheckCircle2, Wrench,
   Package, XCircle, Download, LogOut, User, Phone,
   ChevronRight, Loader2, Shield, Gift, TrendingUp,
-  Link2, Unlink
+  Link2, Unlink, Plus, Trash2, Pencil, Save
 } from "lucide-react";
+
+interface CustomerCar {
+  id: string;
+  user_id: string;
+  brand_model: string;
+  vin: string | null;
+  created_at: string;
+}
 import { formatPrice } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 
