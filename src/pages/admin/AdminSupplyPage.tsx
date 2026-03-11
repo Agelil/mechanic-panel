@@ -101,30 +101,41 @@ export default function AdminSupplyPage() {
     return errs;
   };
 
+  // Таймаут 10 секунд для мутаций
+  const withTimeout = <T,>(promise: Promise<T>, ms = 10_000): Promise<T> => {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Сервер не ответил вовремя")), ms)
+    );
+    return Promise.race([promise, timeout]);
+  };
+
   const handleSubmit = async () => {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
     setSubmitting(true);
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const { data, error } = await withTimeout(
+        supabase.from("supply_orders").insert({
+          master_id: s?.user?.id || null,
+          master_name: masterName.trim(),
+          supply_type: form.supply_type,
+          item_name: form.item_name.trim(),
+          quantity: Number(form.quantity),
+          unit: form.unit.trim() || "шт.",
+          urgency: form.urgency,
+          appointment_id: form.appointment_id.trim() || null,
+          notes: form.notes.trim() || null,
+          status: "pending",
+        }).select().single()
+      );
 
-    const { data: session } = await supabase.auth.getSession();
-    const { data, error } = await supabase.from("supply_orders").insert({
-      master_id: session.session?.user?.id || null,
-      master_name: masterName.trim(),
-      supply_type: form.supply_type,
-      item_name: form.item_name.trim(),
-      quantity: Number(form.quantity),
-      unit: form.unit.trim() || "шт.",
-      urgency: form.urgency,
-      appointment_id: form.appointment_id.trim() || null,
-      notes: form.notes.trim() || null,
-      status: "pending",
-    }).select().single();
+      if (error) {
+        toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+        return;
+      }
 
-    if (error) {
-      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
-    } else {
-      // Send Telegram notification
       try {
         await supabase.functions.invoke("send-telegram-notification", {
           body: {
@@ -144,15 +155,37 @@ export default function AdminSupplyPage() {
       setForm({ supply_type: "part", item_name: "", quantity: "1", unit: "шт.", urgency: "planned", appointment_id: "", notes: "" });
       setShowForm(false);
       toast({ title: "Заявка создана", description: "Администратор получит уведомление в Telegram" });
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: err instanceof Error ? err.message : "Неизвестная ошибка",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false); // ВСЕГДА сбрасываем, даже при таймауте
     }
-    setSubmitting(false);
   };
 
   const updateStatus = async (id: string, status: SupplyStatus) => {
     setUpdatingId(id);
-    await supabase.from("supply_orders").update({ status }).eq("id", id);
-    setOrders((p) => p.map((o) => o.id === id ? { ...o, status } : o));
-    setUpdatingId(null);
+    try {
+      const { error } = await withTimeout(
+        supabase.from("supply_orders").update({ status }).eq("id", id)
+      );
+      if (error) {
+        toast({ title: "Ошибка обновления", description: error.message, variant: "destructive" });
+        return;
+      }
+      setOrders((p) => p.map((o) => o.id === id ? { ...o, status } : o));
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: err instanceof Error ? err.message : "Сервер не ответил",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingId(null); // ВСЕГДА сбрасываем
+    }
   };
 
   const filtered = statusFilter === "all" ? orders : orders.filter((o) => o.status === statusFilter);
