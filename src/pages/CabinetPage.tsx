@@ -297,7 +297,7 @@ export default function CabinetPage() {
       </section>
 
       <div className="container mx-auto px-4 py-10">
-        {!tgUser ? (
+        {!tgUser && !emailUser ? (
           <div className="max-w-md mx-auto text-center">
             <div className="bg-surface border-2 border-border p-10 shadow-brutal">
               <div className="w-16 h-16 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-6">
