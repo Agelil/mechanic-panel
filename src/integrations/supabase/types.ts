@@ -64,13 +64,16 @@ export type Database = {
           message: string | null
           mileage: number | null
           name: string
+          parts_cost: number
           phone: string
           photos: Json | null
           service_type: string
           services: Json | null
+          services_cost: number
           status: string
           total_price: number | null
           updated_at: string
+          work_items: Json
         }
         Insert: {
           acceptance_photos?: Json | null
@@ -83,13 +86,16 @@ export type Database = {
           message?: string | null
           mileage?: number | null
           name: string
+          parts_cost?: number
           phone: string
           photos?: Json | null
           service_type: string
           services?: Json | null
+          services_cost?: number
           status?: string
           total_price?: number | null
           updated_at?: string
+          work_items?: Json
         }
         Update: {
           acceptance_photos?: Json | null
@@ -102,13 +108,16 @@ export type Database = {
           message?: string | null
           mileage?: number | null
           name?: string
+          parts_cost?: number
           phone?: string
           photos?: Json | null
           service_type?: string
           services?: Json | null
+          services_cost?: number
           status?: string
           total_price?: number | null
           updated_at?: string
+          work_items?: Json
         }
         Relationships: []
       }
