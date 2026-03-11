@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 
@@ -33,7 +34,19 @@ import AdminGroupsPage from "@/pages/admin/AdminGroupsPage";
 import AdminSupplyPage from "@/pages/admin/AdminSupplyPage";
 import PendingApprovalPage from "@/components/PendingApprovalPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Не ретраить при 403 — это всегда ошибка прав
+      retry: (failureCount, error) => {
+        const msg = String(error);
+        if (msg.includes("403") || msg.includes("401") || msg.includes("PGRST301")) return false;
+        return failureCount < 2;
+      },
+      staleTime: 30_000,
+    },
+  },
+});
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -51,35 +64,38 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<PublicLayout><HomePage /></PublicLayout>} />
-          <Route path="/services" element={<PublicLayout><ServicesPage /></PublicLayout>} />
-          <Route path="/portfolio" element={<PublicLayout><PortfolioPage /></PublicLayout>} />
-          <Route path="/booking" element={<PublicLayout><BookingPage /></PublicLayout>} />
-          <Route path="/cabinet" element={<PublicLayout><CabinetPage /></PublicLayout>} />
-          <Route path="/privacy" element={<PublicLayout><PrivacyPage /></PublicLayout>} />
+        {/* AuthProvider внутри BrowserRouter чтобы useNavigate работал в useAuthGuard */}
+        <AuthProvider>
+          <Routes>
+            <Route path="/"          element={<PublicLayout><HomePage /></PublicLayout>} />
+            <Route path="/services"  element={<PublicLayout><ServicesPage /></PublicLayout>} />
+            <Route path="/portfolio" element={<PublicLayout><PortfolioPage /></PublicLayout>} />
+            <Route path="/booking"   element={<PublicLayout><BookingPage /></PublicLayout>} />
+            <Route path="/cabinet"   element={<PublicLayout><CabinetPage /></PublicLayout>} />
+            <Route path="/privacy"   element={<PublicLayout><PrivacyPage /></PublicLayout>} />
 
-          <Route path="/admin/login" element={<AdminLoginPage />} />
-          <Route path="/admin/pending" element={<PendingApprovalPage />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="services" element={<AdminServicesPage />} />
-            <Route path="categories" element={<AdminCategoriesPage />} />
-            <Route path="portfolio" element={<AdminPortfolioPage />} />
-            <Route path="appointments" element={<AdminAppointmentsPage />} />
-            <Route path="promotions" element={<AdminPromotionsPage />} />
-            <Route path="clients" element={<AdminClientsPage />} />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="reviews" element={<AdminReviewsPage />} />
-            <Route path="access" element={<AdminAccessPage />} />
-            <Route path="system" element={<AdminSystemPage />} />
-            <Route path="groups" element={<AdminGroupsPage />} />
-            <Route path="supply" element={<AdminSupplyPage />} />
-            <Route path="settings" element={<AdminSettingsPage />} />
-          </Route>
+            <Route path="/admin/login"    element={<AdminLoginPage />} />
+            <Route path="/admin/pending"  element={<PendingApprovalPage />} />
+            <Route path="/admin"          element={<AdminLayout />}>
+              <Route index                element={<AdminDashboard />} />
+              <Route path="services"      element={<AdminServicesPage />} />
+              <Route path="categories"    element={<AdminCategoriesPage />} />
+              <Route path="portfolio"     element={<AdminPortfolioPage />} />
+              <Route path="appointments"  element={<AdminAppointmentsPage />} />
+              <Route path="promotions"    element={<AdminPromotionsPage />} />
+              <Route path="clients"       element={<AdminClientsPage />} />
+              <Route path="users"         element={<AdminUsersPage />} />
+              <Route path="reviews"       element={<AdminReviewsPage />} />
+              <Route path="access"        element={<AdminAccessPage />} />
+              <Route path="system"        element={<AdminSystemPage />} />
+              <Route path="groups"        element={<AdminGroupsPage />} />
+              <Route path="supply"        element={<AdminSupplyPage />} />
+              <Route path="settings"      element={<AdminSettingsPage />} />
+            </Route>
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
