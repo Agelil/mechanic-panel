@@ -56,7 +56,7 @@ export default function AdminLoginPage() {
     if (error) {
       setError("Неверный email или пароль");
     } else {
-      navigate("/admin");
+      navigate(returnTo, { replace: true });
     }
     setLoading(false);
   };
