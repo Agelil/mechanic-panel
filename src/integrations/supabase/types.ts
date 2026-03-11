@@ -938,6 +938,7 @@ export type Database = {
           id: string
           title: string
           updated_at: string
+          visible_to_groups: string[] | null
         }
         Insert: {
           category?: string
@@ -947,6 +948,7 @@ export type Database = {
           id?: string
           title: string
           updated_at?: string
+          visible_to_groups?: string[] | null
         }
         Update: {
           category?: string
@@ -956,6 +958,7 @@ export type Database = {
           id?: string
           title?: string
           updated_at?: string
+          visible_to_groups?: string[] | null
         }
         Relationships: []
       }
@@ -965,6 +968,10 @@ export type Database = {
     }
     Functions: {
       admin_count: { Args: never; Returns: number }
+      can_view_wiki_article: {
+        Args: { _user_id: string; _visible_to_groups: string[] }
+        Returns: boolean
+      }
       get_user_role: { Args: { _user_id: string }; Returns: string }
       has_permission: {
         Args: { _permission: string; _user_id: string }
