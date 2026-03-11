@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { decryptPII, decrypt } from "@/lib/encryption";
 import { usePermission } from "@/hooks/use-permission";
 import AppointmentFinancialBlock, { type WorkItem } from "@/components/admin/AppointmentFinancialBlock";
+import OrderDocumentsBlock from "@/components/admin/OrderDocumentsBlock";
 
 interface ServiceItem {
   id: string;
