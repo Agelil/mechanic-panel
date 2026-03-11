@@ -127,6 +127,7 @@ export default function BookingPage() {
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = "Введите ваше имя";
+    else if (!/^[А-Яа-яЁёA-Za-z\-]+\s+[А-Яа-яЁёA-Za-z\-]+/.test(form.name.trim())) errs.name = "Введите Имя и Фамилию";
     if (!form.phone.trim()) errs.phone = "Введите номер телефона";
     else if (!/^[\+\d\s\-\(\)]{7,20}$/.test(form.phone)) errs.phone = "Некорректный номер";
     if (!form.car_make.trim()) errs.car_make = "Укажите марку автомобиля";
