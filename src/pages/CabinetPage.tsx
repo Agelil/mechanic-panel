@@ -334,7 +334,7 @@ export default function CabinetPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2 bg-surface border-2 border-border p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  {tgUser.photo_url ? (
+                  {tgUser?.photo_url ? (
                     <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
                   ) : (
                     <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
@@ -343,9 +343,12 @@ export default function CabinetPage() {
                   )}
                   <div>
                     <p className="font-display text-2xl tracking-wider">
-                      {tgUser.first_name} {tgUser.last_name || ""}
+                      {emailUser ? emailUser.fullName : `${tgUser?.first_name || ""} ${tgUser?.last_name || ""}`.trim()}
                     </p>
-                    {tgUser.username && (
+                    {emailUser && (
+                      <p className="font-mono text-xs text-muted-foreground">{emailUser.email}</p>
+                    )}
+                    {tgUser?.username && (
                       <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
                     )}
                     {phone && (
