@@ -314,18 +314,21 @@ function SettingField({
   if (field.type === "toggle") {
     const isOn = value === "true";
     return (
-      <label className="flex items-center justify-between p-4 border-2 border-border cursor-pointer hover:border-orange/30 transition-colors">
+      <div
+        onClick={onToggle}
+        className="flex items-center justify-between p-4 border-2 border-border cursor-pointer hover:border-orange/30 transition-colors select-none"
+      >
         <div>
           <span className="font-mono text-sm font-bold block">{field.label}</span>
           {field.hint && <span className="font-mono text-xs text-muted-foreground">{field.hint}</span>}
         </div>
-        <button type="button" onClick={onToggle} className="flex-shrink-0 ml-4">
+        <div className="flex-shrink-0 ml-4">
           {isOn
             ? <ToggleRight className="w-8 h-8 text-orange" />
             : <ToggleLeft className="w-8 h-8 text-muted-foreground" />
           }
-        </button>
-      </label>
+        </div>
+      </div>
     );
   }
 
