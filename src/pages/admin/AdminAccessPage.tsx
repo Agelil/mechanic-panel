@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  CheckCircle2, XCircle, Loader2, UserCheck, Shield, Clock, Search, UserCog
+  CheckCircle2, XCircle, Loader2, UserCheck, Shield, Clock, Search, UserCog, RefreshCw, UserPlus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -13,13 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Profile {
+interface RegistryUser {
   id: string;
-  user_id: string;
+  user_id: string | null;
   email: string | null;
   full_name: string | null;
+  display_name: string | null;
+  phone: string | null;
   is_approved: boolean;
   is_blocked: boolean;
+  role: string | null;
+  source: string;
+  notes: string | null;
   created_at: string;
 }
 
@@ -35,71 +40,57 @@ const ROLE_LABELS: Record<AppRole, { label: string; color: string }> = {
 export default function AdminAccessPage() {
   const { toast } = useToast();
   const { isAtLeast } = useUserRole();
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [users, setUsers] = useState<RegistryUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("pending");
   const [search, setSearch] = useState("");
   const [processing, setProcessing] = useState<string | null>(null);
-
-  // Approve dialog state
   const [approveDialogUserId, setApproveDialogUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<AppRole>("master");
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     const { data, error } = await supabase
-      .from("profiles")
+      .from("users_registry" as any)
       .select("*")
       .order("created_at", { ascending: false });
-    if (!error) setProfiles((data as Profile[]) || []);
+    if (!error && data) setUsers(data as unknown as RegistryUser[]);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const openApproveDialog = (userId: string) => {
+  const openApproveDialog = (id: string) => {
     setSelectedRole("master");
-    setApproveDialogUserId(userId);
+    setApproveDialogUserId(id);
   };
 
   const confirmApprove = async () => {
     if (!approveDialogUserId) return;
-    const userId = approveDialogUserId;
+    const user = users.find((u) => u.id === approveDialogUserId);
+    if (!user) return;
     setApproveDialogUserId(null);
-    setProcessing(userId);
+    setProcessing(user.id);
 
-    // 1. Approve profile
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ is_approved: true, is_blocked: false })
-      .eq("user_id", userId);
+    // 1. Update registry
+    const { error: regError } = await supabase
+      .from("users_registry" as any)
+      .update({ is_approved: true, is_blocked: false, role: selectedRole } as any)
+      .eq("id", user.id);
 
-    if (profileError) {
-      toast({ title: "Ошибка", description: profileError.message, variant: "destructive" });
+    if (regError) {
+      toast({ title: "Ошибка", description: regError.message, variant: "destructive" });
       setProcessing(null);
       return;
     }
 
-    // 2. Assign role
-    const { error: roleError } = await supabase
-      .from("user_roles")
-      .upsert({ user_id: userId, role: selectedRole }, { onConflict: "user_id" });
-
-    if (roleError) {
-      toast({
-        title: "Доступ открыт, но роль не назначена",
-        description: `Ошибка: ${roleError.message}`,
-        variant: "destructive",
-      });
-    } else {
-      setProfiles((p) =>
-        p.map((pr) =>
-          pr.user_id === userId ? { ...pr, is_approved: true, is_blocked: false } : pr
-        )
+    // 2. If linked to auth user, also update profiles + user_roles
+    if (user.user_id) {
+      await supabase.from("profiles").update({ is_approved: true, is_blocked: false }).eq("user_id", user.user_id);
+      await supabase.from("user_roles").upsert(
+        { user_id: user.user_id, role: selectedRole } as any,
+        { onConflict: "user_id" }
       );
-      toast({
-        title: "Пользователь одобрен",
-        description: `Роль «${ROLE_LABELS[selectedRole].label}» назначена.`,
-      });
     }
 
     // 3. Audit log
@@ -108,51 +99,56 @@ export default function AdminAccessPage() {
       user_id: session?.user?.id,
       user_email: session?.user?.email,
       action: "approve_user",
-      target_table: "profiles",
-      target_id: userId,
-      details: { approved_user_id: userId, assigned_role: selectedRole },
+      target_table: "users_registry",
+      target_id: user.id,
+      details: { approved_user_id: user.user_id || user.id, assigned_role: selectedRole },
+    });
+
+    toast({
+      title: "Пользователь одобрен",
+      description: `Роль «${ROLE_LABELS[selectedRole].label}» назначена.`,
     });
 
     setProcessing(null);
+    await load(); // Auto-refresh
   };
 
-  const block = async (userId: string) => {
-    setProcessing(userId);
+  const block = async (user: RegistryUser) => {
+    setProcessing(user.id);
     const { error } = await supabase
-      .from("profiles")
-      .update({ is_approved: false, is_blocked: true })
-      .eq("user_id", userId);
+      .from("users_registry" as any)
+      .update({ is_approved: false, is_blocked: true } as any)
+      .eq("id", user.id);
 
     if (error) {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
     } else {
-      setProfiles((p) =>
-        p.map((pr) =>
-          pr.user_id === userId ? { ...pr, is_approved: false, is_blocked: true } : pr
-        )
-      );
+      if (user.user_id) {
+        await supabase.from("profiles").update({ is_approved: false, is_blocked: true }).eq("user_id", user.user_id);
+      }
       toast({ title: "Заблокировано", description: "Пользователю закрыт доступ.", variant: "destructive" });
       const { data: { session } } = await supabase.auth.getSession();
       await supabase.from("security_audit_log").insert({
         user_id: session?.user?.id,
         user_email: session?.user?.email,
         action: "block_user",
-        target_table: "profiles",
-        target_id: userId,
-        details: { blocked_user_id: userId },
+        target_table: "users_registry",
+        target_id: user.id,
+        details: { blocked_user_id: user.user_id || user.id },
       });
+      await load(); // Auto-refresh
     }
     setProcessing(null);
   };
 
   const counts = {
-    all:     profiles.length,
-    pending: profiles.filter((p) => !p.is_approved && !p.is_blocked).length,
-    approved:profiles.filter((p) => p.is_approved && !p.is_blocked).length,
-    blocked: profiles.filter((p) => p.is_blocked).length,
+    all:     users.length,
+    pending: users.filter((p) => !p.is_approved && !p.is_blocked).length,
+    approved:users.filter((p) => p.is_approved && !p.is_blocked).length,
+    blocked: users.filter((p) => p.is_blocked).length,
   };
 
-  const filtered = profiles
+  const filtered = users
     .filter((p) => {
       if (filter === "pending")  return !p.is_approved && !p.is_blocked;
       if (filter === "approved") return p.is_approved && !p.is_blocked;
@@ -162,7 +158,9 @@ export default function AdminAccessPage() {
     .filter((p) => {
       if (!search) return true;
       const s = search.toLowerCase();
-      return (p.email || "").toLowerCase().includes(s) || (p.full_name || "").toLowerCase().includes(s);
+      return (p.email || "").toLowerCase().includes(s) 
+        || (p.full_name || "").toLowerCase().includes(s)
+        || (p.phone || "").toLowerCase().includes(s);
     });
 
   if (!isAtLeast("manager")) {
@@ -185,9 +183,19 @@ export default function AdminAccessPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-display text-4xl tracking-wider">УПРАВЛЕНИЕ ДОСТУПОМ</h1>
-        <p className="font-mono text-sm text-muted-foreground">Модерация регистраций пользователей</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="font-display text-4xl tracking-wider">УПРАВЛЕНИЕ ДОСТУПОМ</h1>
+          <p className="font-mono text-sm text-muted-foreground">Модерация регистраций из таблицы users_registry</p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-2 border-2 border-border px-4 py-2 font-mono text-xs hover:border-orange hover:text-orange transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+          Обновить данные
+        </button>
       </div>
 
       {/* Stats */}
@@ -212,7 +220,7 @@ export default function AdminAccessPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск по email или имени..."
+          placeholder="Поиск по email, имени или телефону..."
           className="w-full bg-surface border-2 border-border pl-9 pr-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
         />
       </div>
@@ -229,18 +237,18 @@ export default function AdminAccessPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((profile) => (
+          {filtered.map((user) => (
             <div
-              key={profile.id}
+              key={user.id}
               className="bg-surface border-2 border-border p-4 flex flex-col sm:flex-row sm:items-center gap-4"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  {profile.is_blocked ? (
+                  {user.is_blocked ? (
                     <span className="font-mono text-xs border px-2 py-0.5 text-destructive border-destructive/30 bg-destructive/10">
                       ЗАБЛОКИРОВАН
                     </span>
-                  ) : profile.is_approved ? (
+                  ) : user.is_approved ? (
                     <span className="font-mono text-xs border px-2 py-0.5 border-border text-muted-foreground">
                       ОДОБРЕН
                     </span>
@@ -249,56 +257,53 @@ export default function AdminAccessPage() {
                       НА РАССМОТРЕНИИ
                     </span>
                   )}
+                  {user.role && ROLE_LABELS[user.role as AppRole] && (
+                    <span className={`font-mono text-xs border px-2 py-0.5 ${ROLE_LABELS[user.role as AppRole].color}`}>
+                      {ROLE_LABELS[user.role as AppRole].label}
+                    </span>
+                  )}
+                  {user.source === "manual" && (
+                    <span className="font-mono text-xs border px-2 py-0.5 border-blue-400/30 bg-blue-400/10 text-blue-400">
+                      ВРУЧНУЮ
+                    </span>
+                  )}
                 </div>
-                <p className="font-mono text-sm font-bold truncate">{profile.email || "—"}</p>
-                {profile.full_name && (
-                  <p className="font-mono text-xs text-muted-foreground">{profile.full_name}</p>
-                )}
+                <p className="font-mono text-sm font-bold truncate">{user.display_name || user.full_name || user.email || "—"}</p>
+                {user.email && <p className="font-mono text-xs text-muted-foreground">{user.email}</p>}
+                {user.phone && <p className="font-mono text-xs text-muted-foreground">📞 {user.phone}</p>}
                 <p className="font-mono text-xs text-muted-foreground mt-1">
-                  Зарегистрирован: {new Date(profile.created_at).toLocaleString("ru-RU")}
+                  Зарегистрирован: {new Date(user.created_at).toLocaleString("ru-RU")}
                 </p>
               </div>
 
               <div className="flex gap-2 flex-shrink-0">
-                {!profile.is_approved && (
+                {!user.is_approved && (
                   <button
-                    onClick={() => openApproveDialog(profile.user_id)}
-                    disabled={processing === profile.user_id}
+                    onClick={() => openApproveDialog(user.id)}
+                    disabled={processing === user.id}
                     className="flex items-center gap-1.5 font-mono text-xs border-2 border-border px-3 py-2 hover:border-orange hover:text-orange transition-colors disabled:opacity-50"
                   >
-                    {processing === profile.user_id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-3 h-3" />
-                    )}
+                    {processing === user.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                     Одобрить
                   </button>
                 )}
-                {!profile.is_blocked && (
+                {!user.is_blocked && (
                   <button
-                    onClick={() => block(profile.user_id)}
-                    disabled={processing === profile.user_id}
+                    onClick={() => block(user)}
+                    disabled={processing === user.id}
                     className="flex items-center gap-1.5 font-mono text-xs border-2 border-destructive/40 text-destructive px-3 py-2 hover:bg-destructive/10 transition-colors disabled:opacity-50"
                   >
-                    {processing === profile.user_id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <XCircle className="w-3 h-3" />
-                    )}
+                    {processing === user.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
                     Заблокировать
                   </button>
                 )}
-                {profile.is_blocked && (
+                {user.is_blocked && (
                   <button
-                    onClick={() => openApproveDialog(profile.user_id)}
-                    disabled={processing === profile.user_id}
+                    onClick={() => openApproveDialog(user.id)}
+                    disabled={processing === user.id}
                     className="flex items-center gap-1.5 font-mono text-xs border-2 border-orange/40 text-orange px-3 py-2 hover:bg-orange/10 transition-colors disabled:opacity-50"
                   >
-                    {processing === profile.user_id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-3 h-3" />
-                    )}
+                    {processing === user.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                     Разблокировать
                   </button>
                 )}
@@ -308,9 +313,9 @@ export default function AdminAccessPage() {
         </div>
       )}
 
-      {/* ── Approve Dialog ── */}
+      {/* Approve Dialog */}
       {approveDialogUserId && (() => {
-        const profile = profiles.find((p) => p.user_id === approveDialogUserId);
+        const user = users.find((u) => u.id === approveDialogUserId);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
             <div className="bg-surface border-2 border-border shadow-brutal w-full max-w-sm p-6">
@@ -320,54 +325,24 @@ export default function AdminAccessPage() {
                 </div>
                 <div>
                   <h3 className="font-display text-xl tracking-wider">ОДОБРИТЬ ДОСТУП</h3>
-                  <p className="font-mono text-xs text-muted-foreground">{profile?.email}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{user?.email || user?.full_name}</p>
                 </div>
               </div>
-
-              {profile?.full_name && (
-                <p className="font-mono text-sm mb-4">
-                  <span className="text-muted-foreground">Имя: </span>{profile.full_name}
-                </p>
-              )}
 
               <div className="mb-5">
                 <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
                   Назначить роль
                 </label>
-                <Select
-                  value={selectedRole}
-                  onValueChange={(v) => setSelectedRole(v as AppRole)}
-                >
+                <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as AppRole)}>
                   <SelectTrigger className="w-full bg-background border-2 border-border font-mono text-sm rounded-none h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="master" className="font-mono text-sm">
-                      <div className="flex flex-col gap-0.5">
-                        <span>Мастер</span>
-                        <span className="text-xs text-muted-foreground">Просмотр и изменение статусов заявок</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="manager" className="font-mono text-sm">
-                      <div className="flex flex-col gap-0.5">
-                        <span>Менеджер</span>
-                        <span className="text-xs text-muted-foreground">Услуги, портфолио, акции</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="admin" className="font-mono text-sm">
-                      <div className="flex flex-col gap-0.5">
-                        <span>Администратор</span>
-                        <span className="text-xs text-muted-foreground">Полный доступ ко всем разделам</span>
-                      </div>
-                    </SelectItem>
+                    <SelectItem value="master" className="font-mono text-sm">Мастер</SelectItem>
+                    <SelectItem value="manager" className="font-mono text-sm">Менеджер</SelectItem>
+                    <SelectItem value="admin" className="font-mono text-sm">Администратор</SelectItem>
                   </SelectContent>
                 </Select>
-
-                <div className={`mt-2 px-3 py-2 border font-mono text-xs ${ROLE_LABELS[selectedRole].color}`}>
-                  {selectedRole === "master"  && "Мастер сможет просматривать и обновлять статусы заявок"}
-                  {selectedRole === "manager" && "Менеджер получит доступ к услугам, портфолио и акциям"}
-                  {selectedRole === "admin"   && "Администратор получит полный доступ ко всем разделам"}
-                </div>
               </div>
 
               <div className="flex gap-2">
