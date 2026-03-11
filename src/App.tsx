@@ -125,6 +125,7 @@ const App = () => (
               <Route path="groups" element={<ProtectedRoute permission="view_groups"><AdminGroupsPage /></ProtectedRoute>} />
               <Route path="supply" element={<ProtectedRoute permission="view_supply"><AdminSupplyPage /></ProtectedRoute>} />
               <Route path="settings" element={<ProtectedRoute permission="view_settings"><AdminSettingsPage /></ProtectedRoute>} />
+              <Route path="wiki" element={<ProtectedRoute permission="view_dashboard"><AdminWikiPage /></ProtectedRoute>} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
