@@ -130,6 +130,10 @@ const SECTIONS: SettingSection[] = [
 // ── Component ─────────────────────────────────────────────────────
 export default function AdminSettingsPage() {
   const { toast } = useToast();
+  const canEdit = usePermission("edit_site_config");
+  const canManageBonusRate = usePermission("manage_bonus_rate");
+  const canEditTelegram = usePermission("edit_telegram_settings");
+  const canEditIntegrations = usePermission("edit_integrations");
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
