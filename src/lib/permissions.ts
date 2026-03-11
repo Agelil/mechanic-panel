@@ -127,6 +127,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: "delete_groups",            label: "Удаление групп",                 description: "Удалять группы пользователей" },
       { key: "view_permissions",         label: "Просмотр матрицы прав",          description: "Видеть матрицу разрешений ролей" },
       { key: "edit_permissions",         label: "Редактирование прав ролей",      description: "Изменять разрешения для ролей" },
+      { key: "delete_user_accounts",     label: "Удаление аккаунтов",             description: "Полностью удалять аккаунты пользователей" },
       { key: "view_system",              label: "Системная информация",           description: "Статистика БД, версии, метрики" },
       { key: "view_audit_log",           label: "Журнал аудита",                  description: "Просмотр действий всех пользователей" },
     ],

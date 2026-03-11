@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, UserCog, Trash2, AlertCircle, RefreshCw, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { HasPermission } from "@/components/HasPermission";
 import {
   Select,
   SelectContent,
@@ -9,6 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type AppRole = "admin" | "master" | "manager";
 
@@ -37,13 +48,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) setCurrentUserId(session.user.id);
 
-    // Load from users_registry — shows ALL users including manual entries
     const { data, error } = await supabase
       .from("users_registry" as any)
       .select("*")
@@ -61,46 +73,51 @@ export default function AdminUsersPage() {
   const handleRoleChange = async (user: UserRow, newRole: AppRole) => {
     setSaving(user.id);
     try {
-      // Update registry
       const { error: regErr } = await supabase
         .from("users_registry" as any)
         .update({ role: newRole } as any)
         .eq("id", user.id);
-
       if (regErr) throw regErr;
 
-      // If linked to auth user, also update user_roles
       if (user.user_id) {
         await supabase
           .from("user_roles")
           .upsert({ user_id: user.user_id, role: newRole } as any, { onConflict: "user_id" });
       }
-
       toast({ title: "Роль обновлена" });
       await load();
     } catch (e: any) {
-      toast({
-        title: "Ошибка назначения роли",
-        description: e.message || String(e),
-        variant: "destructive",
-      });
+      toast({ title: "Ошибка назначения роли", description: e.message || String(e), variant: "destructive" });
     }
     setSaving(null);
   };
 
   const handleRemoveRole = async (user: UserRow) => {
     if (!confirm("Убрать роль у пользователя?")) return;
-
-    // Remove from registry
     await supabase.from("users_registry" as any).update({ role: null } as any).eq("id", user.id);
-
-    // Remove from user_roles if linked
     if (user.user_id) {
       await supabase.from("user_roles").delete().eq("user_id", user.user_id);
     }
-
     toast({ title: "Роль удалена" });
     await load();
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { registry_id: deleteTarget.id, user_id: deleteTarget.user_id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Аккаунт удалён", description: `Пользователь ${deleteTarget.display_name || deleteTarget.email || "—"} удалён.` });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Ошибка удаления", description: e.message || String(e), variant: "destructive" });
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   return (
@@ -150,9 +167,7 @@ export default function AdminUsersPage() {
                       <p className="font-mono text-sm truncate">{user.display_name || user.full_name || user.email || "—"}</p>
                       {isCurrentUser && <span className="font-mono text-xs text-orange">(вы)</span>}
                       {user.source === "manual" && (
-                        <span className="font-mono text-xs border border-blue-400/30 bg-blue-400/10 text-blue-400 px-1.5 py-0.5">
-                          вручную
-                        </span>
+                        <span className="font-mono text-xs border border-blue-400/30 bg-blue-400/10 text-blue-400 px-1.5 py-0.5">вручную</span>
                       )}
                     </div>
                     {user.email && <p className="font-mono text-xs text-muted-foreground truncate">{user.email}</p>}
@@ -167,9 +182,7 @@ export default function AdminUsersPage() {
 
                 <div className="flex items-center gap-3 flex-wrap">
                   {roleInfo && (
-                    <span className={`font-mono text-xs border px-2 py-0.5 ${roleInfo.color}`}>
-                      {roleInfo.label}
-                    </span>
+                    <span className={`font-mono text-xs border px-2 py-0.5 ${roleInfo.color}`}>{roleInfo.label}</span>
                   )}
 
                   <Select
@@ -206,6 +219,19 @@ export default function AdminUsersPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
+
+                  {/* Delete account — permission-gated */}
+                  {!isCurrentUser && (
+                    <HasPermission permission="delete_user_accounts">
+                      <button
+                        onClick={() => setDeleteTarget(user)}
+                        className="p-2 text-muted-foreground hover:text-destructive border border-border hover:border-destructive transition-colors"
+                        title="Удалить аккаунт"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </HasPermission>
+                  )}
                 </div>
               </div>
             );
@@ -231,6 +257,35 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="border-2 border-destructive/30">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl tracking-wider">
+              УДАЛИТЬ АККАУНТ
+            </AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-sm">
+              Вы уверены, что хотите полностью удалить аккаунт пользователя{" "}
+              <strong className="text-foreground">
+                {deleteTarget?.display_name || deleteTarget?.full_name || deleteTarget?.email || "—"}
+              </strong>
+              ? Это действие необратимо.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono text-sm" disabled={deleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono text-sm"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Удалить навсегда
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
