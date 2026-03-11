@@ -28,6 +28,12 @@ interface ServiceOption {
   category_id: string | null;
 }
 
+interface CustomerCar {
+  id: string;
+  brand_model: string;
+  vin: string | null;
+}
+
 export default function BookingPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -41,6 +47,8 @@ export default function BookingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoFilled, setAutoFilled] = useState(false);
   const [isGuest, setIsGuest] = useState(true);
+  const [userCars, setUserCars] = useState<CustomerCar[]>([]);
+  const [selectedCarId, setSelectedCarId] = useState<string>("");
 
   // Load services + categories
   useEffect(() => {
@@ -74,8 +82,6 @@ export default function BookingPage() {
           .eq("user_id", session.user.id)
           .maybeSingle();
         
-        // Find last appointment by email or user
-        const userEmail = session.user.email;
         const userName = profile?.full_name || session.user.user_metadata?.full_name || "";
         
         // Get phone from users_registry
@@ -85,6 +91,16 @@ export default function BookingPage() {
           .eq("user_id", session.user.id)
           .maybeSingle();
         const regPhone = (regData as any)?.phone || "";
+
+        // Load user's cars
+        const { data: carsData } = await supabase
+          .from("customer_cars" as any)
+          .select("id, brand_model, vin")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false });
+        if (carsData && (carsData as any[]).length > 0) {
+          setUserCars(carsData as any as CustomerCar[]);
+        }
 
         // Last appointment
         if (regPhone || userName) {
@@ -154,7 +170,19 @@ export default function BookingPage() {
     ? services
     : services.filter((s) => s.category_id === selectedCategory || s.category === selectedCategory);
 
-  // Fallback: group by category text if no category_id system
+  const handleSelectCar = (carId: string) => {
+    setSelectedCarId(carId);
+    if (carId === "manual") {
+      setForm(prev => ({ ...prev, car_make: "", car_vin: "" }));
+      return;
+    }
+    const car = userCars.find(c => c.id === carId);
+    if (car) {
+      setForm(prev => ({ ...prev, car_make: car.brand_model, car_vin: car.vin || "" }));
+      if (errors.car_make) setErrors(p => { const e = { ...p }; delete e.car_make; return e; });
+    }
+  };
+
   const hasCategories = categories.length > 0;
 
   const totalMin = selectedServices.reduce((sum, s) => sum + s.price_from, 0);
@@ -351,13 +379,42 @@ export default function BookingPage() {
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <Car className="w-3.5 h-3.5 text-orange" /> Марка и модель *
                 </label>
-                <input
-                  type="text"
-                  value={form.car_make}
-                  onChange={(e) => handleChange("car_make", e.target.value)}
-                  placeholder="Toyota Camry 2020"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`}
-                />
+                {userCars.length > 0 ? (
+                  <>
+                    <Select value={selectedCarId} onValueChange={handleSelectCar}>
+                      <SelectTrigger className="w-full bg-surface border-2 border-border font-mono text-sm rounded-none h-12 focus:border-orange">
+                        <SelectValue placeholder="Выберите автомобиль" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userCars.map((car) => (
+                          <SelectItem key={car.id} value={car.id} className="font-mono text-sm">
+                            {car.brand_model}{car.vin ? ` (${car.vin})` : ""}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="manual" className="font-mono text-sm text-muted-foreground">
+                          Другой автомобиль...
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(selectedCarId === "manual" || !selectedCarId) && (
+                      <input
+                        type="text"
+                        value={form.car_make}
+                        onChange={(e) => handleChange("car_make", e.target.value)}
+                        placeholder="Toyota Camry 2020"
+                        className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors mt-2 ${errors.car_make ? "border-destructive" : "border-border"}`}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={form.car_make}
+                    onChange={(e) => handleChange("car_make", e.target.value)}
+                    placeholder="Toyota Camry 2020"
+                    className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`}
+                  />
+                )}
                 {errors.car_make && <p className="font-mono text-xs text-destructive mt-1">{errors.car_make}</p>}
               </div>
 
@@ -372,6 +429,7 @@ export default function BookingPage() {
                   placeholder="WAUZZZ8K9BA012345"
                   maxLength={17}
                   className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase"
+                  readOnly={!!selectedCarId && selectedCarId !== "manual"}
                 />
               </div>
 

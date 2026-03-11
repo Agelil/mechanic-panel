@@ -216,6 +216,30 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_cars: {
+        Row: {
+          brand_model: string
+          created_at: string
+          id: string
+          user_id: string
+          vin: string | null
+        }
+        Insert: {
+          brand_model: string
+          created_at?: string
+          id?: string
+          user_id: string
+          vin?: string | null
+        }
+        Update: {
+          brand_model?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+          vin?: string | null
+        }
+        Relationships: []
+      }
       portfolio: {
         Row: {
           car_details: Json | null

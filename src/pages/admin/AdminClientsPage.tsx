@@ -21,6 +21,13 @@ interface Client {
   created_at: string;
 }
 
+interface CustomerCar {
+  id: string;
+  user_id: string;
+  brand_model: string;
+  vin: string | null;
+}
+
 interface TelegramUser {
   id: string;
   chat_id: string;
@@ -84,10 +91,16 @@ export default function AdminClientsPage() {
 
   // Edit modal
   const [editClient, setEditClient] = useState<Client | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", phone: "", car_make: "", car_vin: "" });
+  const [editForm, setEditForm] = useState({ name: "", phone: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editNameError, setEditNameError] = useState("");
   const [phoneWarning, setPhoneWarning] = useState(false);
+
+  // Car management in edit modal
+  const [editCars, setEditCars] = useState<CustomerCar[]>([]);
+  const [editNewCarBrand, setEditNewCarBrand] = useState("");
+  const [editNewCarVin, setEditNewCarVin] = useState("");
+  const [editClientUserId, setEditClientUserId] = useState<string | null>(null);
 
   // Delete modal
   const [deleteClient, setDeleteClient] = useState<Client | null>(null);
@@ -124,26 +137,30 @@ export default function AdminClientsPage() {
     setEditClient(client);
     setEditNameError("");
     setPhoneWarning(false);
-    // Get car info from last appointment
-    let carMake = "", carVin = "";
     const decPhone = decrypt(client.phone) || client.phone;
-    if (decPhone) {
-      const { data } = await supabase
-        .from("appointments")
-        .select("car_make, car_vin")
-        .eq("phone", decPhone)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      carMake = data?.car_make || "";
-      carVin = data?.car_vin || "";
+    setEditForm({ name: client.name || "", phone: decPhone || client.phone });
+
+    // Find user_id from users_registry by phone
+    const { data: regData } = await supabase
+      .from("users_registry" as any)
+      .select("user_id")
+      .eq("phone", decPhone)
+      .maybeSingle();
+    const userId = (regData as any)?.user_id || null;
+    setEditClientUserId(userId);
+
+    // Load cars for this user
+    if (userId) {
+      const { data: carsData } = await supabase
+        .from("customer_cars" as any)
+        .select("id, user_id, brand_model, vin")
+        .eq("user_id", userId);
+      setEditCars((carsData as any as CustomerCar[]) || []);
+    } else {
+      setEditCars([]);
     }
-    setEditForm({
-      name: client.name || "",
-      phone: decPhone || client.phone,
-      car_make: carMake,
-      car_vin: carVin,
-    });
+    setEditNewCarBrand("");
+    setEditNewCarVin("");
   };
 
   const saveEditClient = async () => {
@@ -769,28 +786,69 @@ export default function AdminClientsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Cars management */}
               <div>
-                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Автомобиль</label>
-                <input
-                  type="text"
-                  value={editForm.car_make}
-                  onChange={(e) => setEditForm(p => ({ ...p, car_make: e.target.value }))}
-                  placeholder="Toyota Camry 2020"
-                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
-                  disabled
-                />
-                <p className="font-mono text-xs text-muted-foreground mt-1">Данные авто подтягиваются из заказов</p>
-              </div>
-              <div>
-                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">VIN</label>
-                <input
-                  type="text"
-                  value={editForm.car_vin}
-                  onChange={(e) => setEditForm(p => ({ ...p, car_vin: e.target.value.toUpperCase() }))}
-                  maxLength={17}
-                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase"
-                  disabled
-                />
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">Автомобили клиента</label>
+                {editCars.length > 0 ? (
+                  <div className="space-y-2 mb-3">
+                    {editCars.map((car) => (
+                      <div key={car.id} className="flex items-center justify-between border border-border p-2">
+                        <div>
+                          <p className="font-mono text-sm">{car.brand_model}</p>
+                          {car.vin && <p className="font-mono text-xs text-muted-foreground">VIN: {car.vin}</p>}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            await supabase.from("customer_cars" as any).delete().eq("id", car.id);
+                            setEditCars(prev => prev.filter(c => c.id !== car.id));
+                          }}
+                          className="text-muted-foreground hover:text-destructive p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="font-mono text-xs text-muted-foreground mb-3">Нет сохранённых автомобилей</p>
+                )}
+                {editClientUserId && (
+                  <div className="space-y-2 border border-border p-3 bg-background">
+                    <input
+                      type="text"
+                      value={editNewCarBrand}
+                      onChange={(e) => setEditNewCarBrand(e.target.value)}
+                      placeholder="Марка и модель"
+                      className="w-full bg-surface border border-border px-3 py-2 font-mono text-xs focus:outline-none focus:border-orange"
+                    />
+                    <input
+                      type="text"
+                      value={editNewCarVin}
+                      onChange={(e) => setEditNewCarVin(e.target.value.toUpperCase())}
+                      placeholder="VIN (необязательно)"
+                      maxLength={17}
+                      className="w-full bg-surface border border-border px-3 py-2 font-mono text-xs focus:outline-none focus:border-orange uppercase"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!editNewCarBrand.trim() || !editClientUserId) return;
+                        const { data } = await supabase.from("customer_cars" as any).insert({
+                          user_id: editClientUserId,
+                          brand_model: editNewCarBrand.trim(),
+                          vin: editNewCarVin.trim().toUpperCase() || null,
+                        } as any).select().single();
+                        if (data) setEditCars(prev => [...prev, data as any as CustomerCar]);
+                        setEditNewCarBrand("");
+                        setEditNewCarVin("");
+                      }}
+                      disabled={!editNewCarBrand.trim()}
+                      className="flex items-center gap-1 font-mono text-xs text-orange hover:text-orange-bright disabled:opacity-50"
+                    >
+                      <Plus className="w-3 h-3" /> Добавить авто
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -5,8 +5,16 @@ import {
   Car, FileText, Star, Clock, CheckCircle2, Wrench,
   Package, XCircle, Download, LogOut, User, Phone,
   ChevronRight, Loader2, Shield, Gift, TrendingUp,
-  Link2, Unlink
+  Link2, Unlink, Plus, Trash2, Pencil, Save
 } from "lucide-react";
+
+interface CustomerCar {
+  id: string;
+  user_id: string;
+  brand_model: string;
+  vin: string | null;
+  created_at: string;
+}
 import { formatPrice } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 
@@ -86,6 +94,18 @@ export default function CabinetPage() {
   const [botUsername, setBotUsername] = useState<string>("s_tochka_bot");
   const [linkingTg, setLinkingTg] = useState(false);
 
+  // Phone editing
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
+
+  // Cars
+  const [cars, setCars] = useState<CustomerCar[]>([]);
+  const [showAddCar, setShowAddCar] = useState(false);
+  const [newCarBrand, setNewCarBrand] = useState("");
+  const [newCarVin, setNewCarVin] = useState("");
+  const [addingCar, setAddingCar] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) {
@@ -133,10 +153,20 @@ export default function CabinetPage() {
 
       if (foundPhone) {
         setPhone(foundPhone);
+        setPhoneInput(foundPhone);
         await loadClientDataByPhone(foundPhone, fullName);
       } else {
         setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
       }
+
+      // Load user's cars
+      const { data: userCars } = await supabase
+        .from("customer_cars" as any)
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+      if (userCars) setCars(userCars as any as CustomerCar[]);
+
       setLoading(false);
     });
   }, []);
@@ -227,6 +257,39 @@ export default function CabinetPage() {
     setLinkingTg(false);
   };
 
+  // Phone editing
+  const handleSavePhone = async () => {
+    if (!emailUser || !phoneInput.trim()) return;
+    setSavingPhone(true);
+    const newPhone = phoneInput.trim();
+    await supabase.from("users_registry" as any).update({ phone: newPhone } as any).eq("user_id", emailUser.id);
+    await supabase.from("clients").upsert({ phone: newPhone, name: clientName || emailUser.fullName }, { onConflict: "phone" });
+    setPhone(newPhone);
+    setEditingPhone(false);
+    setSavingPhone(false);
+  };
+
+  // Car management
+  const handleAddCar = async () => {
+    if (!emailUser || !newCarBrand.trim()) return;
+    setAddingCar(true);
+    const { data } = await supabase.from("customer_cars" as any).insert({
+      user_id: emailUser.id,
+      brand_model: newCarBrand.trim(),
+      vin: newCarVin.trim().toUpperCase() || null,
+    } as any).select().single();
+    if (data) setCars(prev => [data as any as CustomerCar, ...prev]);
+    setNewCarBrand("");
+    setNewCarVin("");
+    setShowAddCar(false);
+    setAddingCar(false);
+  };
+
+  const handleDeleteCar = async (carId: string) => {
+    await supabase.from("customer_cars" as any).delete().eq("id", carId);
+    setCars(prev => prev.filter(c => c.id !== carId));
+  };
+
   const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
   const historyOrders = appointments.filter((a) => TERMINAL.includes(a.status));
   const currentAppt = activeOrders[0] || null;
@@ -314,9 +377,26 @@ export default function CabinetPage() {
                     <div>
                       <p className="font-display text-2xl tracking-wider">{emailUser.fullName}</p>
                       <p className="font-mono text-xs text-muted-foreground">{emailUser.email}</p>
-                      {phone && (
-                        <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
-                          <Phone className="w-3 h-3" /> {phone}
+                      {editingPhone ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="tel"
+                            value={phoneInput}
+                            onChange={(e) => setPhoneInput(e.target.value)}
+                            className="bg-background border border-border px-2 py-1 font-mono text-xs w-40 focus:outline-none focus:border-orange"
+                            placeholder="+7..."
+                          />
+                          <button onClick={handleSavePhone} disabled={savingPhone} className="text-orange hover:text-orange-bright">
+                            {savingPhone ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                          </button>
+                          <button onClick={() => { setEditingPhone(false); setPhoneInput(phone || ""); }} className="text-muted-foreground hover:text-foreground">
+                            <XCircle className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1 cursor-pointer group" onClick={() => setEditingPhone(true)}>
+                          <Phone className="w-3 h-3" /> {phone || "Добавить телефон"}
+                          <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </p>
                       )}
                     </div>
@@ -371,6 +451,84 @@ export default function CabinetPage() {
                   </span>
                 )}
               </div>
+            </div>
+
+            {/* My Cars Section */}
+            <div className="bg-surface border-2 border-border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Car className="w-5 h-5 text-orange" />
+                  <h3 className="font-display text-xl tracking-wider">МОИ АВТОМОБИЛИ</h3>
+                  <span className="font-mono text-xs text-muted-foreground">({cars.length})</span>
+                </div>
+                <button
+                  onClick={() => setShowAddCar(!showAddCar)}
+                  className="flex items-center gap-1.5 font-mono text-xs text-orange hover:text-orange-bright transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Добавить
+                </button>
+              </div>
+
+              {showAddCar && (
+                <div className="border border-orange/30 bg-orange/5 p-4 mb-4 space-y-3">
+                  <input
+                    type="text"
+                    value={newCarBrand}
+                    onChange={(e) => setNewCarBrand(e.target.value)}
+                    placeholder="Марка и модель (например Toyota Camry 2020)"
+                    className="w-full bg-background border-2 border-border px-3 py-2 font-mono text-sm focus:outline-none focus:border-orange"
+                  />
+                  <input
+                    type="text"
+                    value={newCarVin}
+                    onChange={(e) => setNewCarVin(e.target.value)}
+                    placeholder="VIN (необязательно)"
+                    maxLength={17}
+                    className="w-full bg-background border-2 border-border px-3 py-2 font-mono text-sm focus:outline-none focus:border-orange uppercase"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddCar}
+                      disabled={addingCar || !newCarBrand.trim()}
+                      className="flex items-center gap-1.5 bg-orange text-primary-foreground px-4 py-2 font-mono text-xs hover:bg-orange-bright transition-colors disabled:opacity-50"
+                    >
+                      {addingCar ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                      Сохранить
+                    </button>
+                    <button
+                      onClick={() => { setShowAddCar(false); setNewCarBrand(""); setNewCarVin(""); }}
+                      className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-2 border border-border"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {cars.length === 0 && !showAddCar ? (
+                <p className="font-mono text-xs text-muted-foreground text-center py-4">
+                  Нет сохранённых автомобилей. Добавьте авто для быстрой записи на сервис.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {cars.map((car) => (
+                    <div key={car.id} className="flex items-center justify-between border border-border p-3">
+                      <div>
+                        <p className="font-mono text-sm font-bold">{car.brand_model}</p>
+                        {car.vin && <p className="font-mono text-xs text-muted-foreground">VIN: {car.vin}</p>}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCar(car.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                        title="Удалить"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {needsName ? (
