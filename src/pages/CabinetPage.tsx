@@ -197,14 +197,20 @@ export default function CabinetPage() {
         .select("*")
         .in("appointment_id", apptIds);
 
-      const apptsWithDocs = appts.map((a) => ({
-        ...a,
-        services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
-        work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
-        parts_cost: (a as any).parts_cost ?? 0,
-        services_cost: (a as any).services_cost ?? 0,
-        documents: docs?.filter((d) => d.appointment_id === a.id) || [],
-      }));
+      const apptsWithDocs = appts.map((a) => {
+        const pc = Number((a as any).parts_cost) || 0;
+        const sc = Number((a as any).services_cost) || 0;
+        const tp = Number((a as any).total_price) || null;
+        return {
+          ...a,
+          services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
+          work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
+          parts_cost: pc,
+          services_cost: sc,
+          total_price: tp !== null && Number.isFinite(tp) ? tp : (pc + sc > 0 ? pc + sc : null),
+          documents: docs?.filter((d) => d.appointment_id === a.id) || [],
+        };
+      });
       setAppointments(apptsWithDocs);
     }
 
