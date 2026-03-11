@@ -268,12 +268,18 @@ export default function AdminAppointmentsPage() {
     );
   };
 
-  const filtered = useMemo(
-    () => statusFilter === "all" ? appointments : appointments.filter((a) => a.status === statusFilter),
-    [appointments, statusFilter]
-  );
+  const TERMINAL_STATUSES = ["completed", "cancelled"];
 
-  const counts: Record<string, number> = { all: appointments.length };
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return appointments;
+    if (statusFilter === "active") return appointments.filter((a) => !TERMINAL_STATUSES.includes(a.status));
+    return appointments.filter((a) => a.status === statusFilter);
+  }, [appointments, statusFilter]);
+
+  const counts: Record<string, number> = {
+    all: appointments.length,
+    active: appointments.filter((a) => !TERMINAL_STATUSES.includes(a.status)).length,
+  };
   Object.keys(STATUS_CONFIG).forEach((s) => {
     counts[s] = appointments.filter((a) => a.status === s).length;
   });
