@@ -298,6 +298,10 @@ export default function AdminAppointmentsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-px bg-border mb-6">
+        <button onClick={() => setStatusFilter("active")}
+          className={`px-4 py-2 font-mono text-xs uppercase tracking-widest transition-colors ${statusFilter === "active" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground hover:bg-surface"}`}>
+          Активные ({counts.active})
+        </button>
         <button onClick={() => setStatusFilter("all")}
           className={`px-4 py-2 font-mono text-xs uppercase tracking-widest transition-colors ${statusFilter === "all" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground hover:bg-surface"}`}>
           Все ({counts.all})
