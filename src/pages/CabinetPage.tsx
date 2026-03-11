@@ -121,7 +121,6 @@ export default function CabinetPage() {
   const loadClientData = async (user: TelegramUser) => {
     setLoading(true);
     try {
-      // Find client by telegram ID or phone
       const { data: tgSession } = await supabase
         .from("telegram_sessions")
         .select("phone")
@@ -131,17 +130,25 @@ export default function CabinetPage() {
       const clientPhone = tgSession?.phone || phone;
       if (clientPhone) setPhone(clientPhone);
 
+      // Load bonus settings
+      const { data: settings } = await supabase
+        .from("settings")
+        .select("key, value")
+        .in("key", ["max_bonus_payment_percentage"]);
+      if (settings) {
+        const maxPct = settings.find((s) => s.key === "max_bonus_payment_percentage");
+        if (maxPct?.value) setMaxBonusPct(parseFloat(maxPct.value) || 30);
+      }
+
       if (clientPhone) {
-        // Load appointments
         const { data: appts } = await supabase
           .from("appointments")
           .select("id, car_make, license_plate, service_type, status, created_at, total_price, services")
           .eq("phone", clientPhone)
           .order("created_at", { ascending: false })
-          .limit(10);
+          .limit(20);
 
         if (appts && appts.length > 0) {
-          // Load documents for each appointment
           const apptIds = appts.map((a) => a.id);
           const { data: docs } = await supabase
             .from("appointment_documents")
@@ -155,6 +162,14 @@ export default function CabinetPage() {
           }));
           setAppointments(apptsWithDocs);
         }
+
+        // Load client bonus balance
+        const { data: client } = await supabase
+          .from("clients")
+          .select("bonus_points")
+          .eq("phone", clientPhone)
+          .maybeSingle();
+        if (client) setBonusPoints(client.bonus_points || 0);
       }
     } finally {
       setLoading(false);
@@ -166,9 +181,17 @@ export default function CabinetPage() {
     setTgUser(null);
     setAppointments([]);
     setPhone(null);
+    setBonusPoints(0);
   };
 
   const currentAppt = appointments.find((a) => !["completed", "cancelled"].includes(a.status));
+
+  // Compute bonus discount for current appointment
+  const bonusDiscount = (() => {
+    if (!currentAppt?.total_price || bonusPoints <= 0) return 0;
+    const maxByPct = Math.floor(currentAppt.total_price * maxBonusPct / 100);
+    return Math.min(bonusPoints, maxByPct);
+  })();
 
   return (
     <div className="min-h-screen pt-16 bg-background">
