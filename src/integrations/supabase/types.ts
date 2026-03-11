@@ -150,45 +150,74 @@ export type Database = {
       }
       portfolio: {
         Row: {
+          car_details: Json | null
           car_make: string | null
           car_model: string | null
           car_year: number | null
           created_at: string
           description: string | null
+          final_price: number | null
           id: string
           image_after_url: string | null
           image_before_url: string | null
           is_published: boolean
+          mileage: number | null
+          parts_list: Json | null
+          review_id: string | null
           service_type: string | null
           title: string
+          work_duration: string | null
+          work_list: Json | null
         }
         Insert: {
+          car_details?: Json | null
           car_make?: string | null
           car_model?: string | null
           car_year?: number | null
           created_at?: string
           description?: string | null
+          final_price?: number | null
           id?: string
           image_after_url?: string | null
           image_before_url?: string | null
           is_published?: boolean
+          mileage?: number | null
+          parts_list?: Json | null
+          review_id?: string | null
           service_type?: string | null
           title: string
+          work_duration?: string | null
+          work_list?: Json | null
         }
         Update: {
+          car_details?: Json | null
           car_make?: string | null
           car_model?: string | null
           car_year?: number | null
           created_at?: string
           description?: string | null
+          final_price?: number | null
           id?: string
           image_after_url?: string | null
           image_before_url?: string | null
           is_published?: boolean
+          mileage?: number | null
+          parts_list?: Json | null
+          review_id?: string | null
           service_type?: string | null
           title?: string
+          work_duration?: string | null
+          work_list?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "reviews"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
