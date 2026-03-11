@@ -103,6 +103,8 @@ const App = () => (
             <Route path="/cabinet"   element={<PublicLayout><CabinetPage /></PublicLayout>} />
             <Route path="/privacy"   element={<PublicLayout><PrivacyPage /></PublicLayout>} />
             <Route path="/booking-success" element={<PublicLayout><BookingSuccessPage /></PublicLayout>} />
+            <Route path="/register" element={<PublicLayout><RegisterPage /></PublicLayout>} />
+            <Route path="/login"    element={<PublicLayout><LoginPage /></PublicLayout>} />
 
             <Route path="/admin/login"    element={<AdminLoginPage />} />
             <Route path="/admin/pending"  element={<PendingApprovalPage />} />
