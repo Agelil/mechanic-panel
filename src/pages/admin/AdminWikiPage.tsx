@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  BookOpen, Plus, Pencil, Trash2, Save, X, Search, Loader2, FolderOpen, FileText
+  BookOpen, Plus, Pencil, Trash2, Save, X, Search, Loader2, FolderOpen, FileText, Users, Shield
 } from "lucide-react";
 
 interface WikiArticle {
@@ -13,6 +13,12 @@ interface WikiArticle {
   category: string;
   created_at: string;
   updated_at: string;
+  visible_to_groups: string[];
+}
+
+interface UserGroup {
+  id: string;
+  name: string;
 }
 
 const DEFAULT_CATEGORIES = ["Общее", "Регламенты", "Инструкции", "Обучение", "FAQ"];
@@ -23,6 +29,7 @@ export default function AdminWikiPage() {
   const canManage = hasPermission("manage_wiki");
 
   const [articles, setArticles] = useState<WikiArticle[]>([]);
+  const [groups, setGroups] = useState<UserGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -30,24 +37,36 @@ export default function AdminWikiPage() {
 
   // Editor state
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", content: "", category: "Общее" });
+  const [editForm, setEditForm] = useState({ title: "", content: "", category: "Общее", visible_to_groups: [] as string[] });
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const { data, error } = await supabase
-      .from("wiki_articles")
-      .select("*")
-      .order("updated_at", { ascending: false });
-    if (error) {
-      toast({ title: "Ошибка загрузки", description: error.message, variant: "destructive" });
+    const [articlesRes, groupsRes] = await Promise.all([
+      supabase.from("wiki_articles").select("*").order("updated_at", { ascending: false }),
+      supabase.from("user_groups").select("id, name").order("name"),
+    ]);
+    if (articlesRes.error) {
+      toast({ title: "Ошибка загрузки", description: articlesRes.error.message, variant: "destructive" });
     } else {
-      setArticles(data || []);
+      const mapped = (articlesRes.data || []).map((a: any) => ({
+        ...a,
+        visible_to_groups: Array.isArray(a.visible_to_groups) ? a.visible_to_groups : [],
+      }));
+      setArticles(mapped);
     }
+    setGroups(groupsRes.data || []);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  // Group name lookup
+  const groupNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    groups.forEach((g) => m.set(g.id, g.name));
+    return m;
+  }, [groups]);
 
   // Unique categories from articles + defaults
   const categories = useMemo(() => {
@@ -76,20 +95,34 @@ export default function AdminWikiPage() {
 
   const openCreate = () => {
     setEditId(null);
-    setEditForm({ title: "", content: "", category: selectedCategory || "Общее" });
+    setEditForm({ title: "", content: "", category: selectedCategory || "Общее", visible_to_groups: [] });
     setEditing(true);
     setSelectedArticle(null);
   };
 
   const openEdit = (article: WikiArticle) => {
     setEditId(article.id);
-    setEditForm({ title: article.title, content: article.content, category: article.category });
+    setEditForm({
+      title: article.title,
+      content: article.content,
+      category: article.category,
+      visible_to_groups: article.visible_to_groups || [],
+    });
     setEditing(true);
   };
 
   const cancelEdit = () => {
     setEditing(false);
     setEditId(null);
+  };
+
+  const toggleGroup = (groupId: string) => {
+    setEditForm((p) => ({
+      ...p,
+      visible_to_groups: p.visible_to_groups.includes(groupId)
+        ? p.visible_to_groups.filter((g) => g !== groupId)
+        : [...p.visible_to_groups, groupId],
+    }));
   };
 
   const saveArticle = async () => {
@@ -99,12 +132,15 @@ export default function AdminWikiPage() {
     }
     setSaving(true);
 
+    const payload = {
+      title: editForm.title.trim(),
+      content: editForm.content,
+      category: editForm.category,
+      visible_to_groups: editForm.visible_to_groups,
+    };
+
     if (editId) {
-      const { error } = await supabase.from("wiki_articles").update({
-        title: editForm.title.trim(),
-        content: editForm.content,
-        category: editForm.category,
-      }).eq("id", editId);
+      const { error } = await supabase.from("wiki_articles").update(payload).eq("id", editId);
       if (error) {
         toast({ title: "Ошибка", description: error.message, variant: "destructive" });
       } else {
@@ -112,22 +148,17 @@ export default function AdminWikiPage() {
         setEditing(false);
         setEditId(null);
         await load();
-        // Update selected article view
-        setSelectedArticle((prev) => prev?.id === editId ? { ...prev, ...editForm, title: editForm.title.trim() } : prev);
+        setSelectedArticle((prev) => prev?.id === editId ? { ...prev, ...payload, title: payload.title } : prev);
       }
     } else {
-      const { data, error } = await supabase.from("wiki_articles").insert([{
-        title: editForm.title.trim(),
-        content: editForm.content,
-        category: editForm.category,
-      }]).select().single();
+      const { data, error } = await supabase.from("wiki_articles").insert([payload]).select().single();
       if (error) {
         toast({ title: "Ошибка", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "✓ Статья создана" });
         setEditing(false);
         await load();
-        if (data) setSelectedArticle(data);
+        if (data) setSelectedArticle({ ...data, visible_to_groups: data.visible_to_groups || [] });
       }
     }
     setSaving(false);
@@ -248,9 +279,17 @@ export default function AdminWikiPage() {
                   >
                     <div className="flex items-start gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="font-mono text-sm truncate">{a.title}</p>
-                        <p className="font-mono text-xs text-muted-foreground">{a.category}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-mono text-xs text-muted-foreground">{a.category}</p>
+                          {a.visible_to_groups.length > 0 && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-mono text-accent">
+                              <Shield className="w-2.5 h-2.5" />
+                              {a.visible_to_groups.length}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -297,6 +336,40 @@ export default function AdminWikiPage() {
                 </div>
               </div>
 
+              {/* Group visibility selector */}
+              {canManage && (
+                <div>
+                  <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">
+                    <Users className="w-3.5 h-3.5 inline mr-1.5" />
+                    Доступно для групп
+                    <span className="text-muted-foreground/60 normal-case ml-2">(пусто = видна всем)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {groups.map((g) => {
+                      const selected = editForm.visible_to_groups.includes(g.id);
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => toggleGroup(g.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 border-2 font-mono text-xs transition-colors ${
+                            selected
+                              ? "border-orange bg-orange/10 text-orange"
+                              : "border-border hover:border-muted-foreground text-muted-foreground"
+                          }`}
+                        >
+                          <Users className="w-3 h-3" />
+                          {g.name}
+                        </button>
+                      );
+                    })}
+                    {groups.length === 0 && (
+                      <p className="font-mono text-xs text-muted-foreground">Нет групп. Создайте группы в разделе «Группы».</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">
                   Содержание (поддерживается # заголовки, - списки)
@@ -332,9 +405,22 @@ export default function AdminWikiPage() {
             <div className="p-6">
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <span className="font-mono text-xs text-orange border border-orange/30 px-2 py-0.5 mb-2 inline-block">
-                    {selectedArticle.category}
-                  </span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
+                      {selectedArticle.category}
+                    </span>
+                    {selectedArticle.visible_to_groups.length > 0 && (
+                      <span className="font-mono text-[10px] text-accent border border-accent/30 px-2 py-0.5 flex items-center gap-1">
+                        <Shield className="w-3 h-3" />
+                        {selectedArticle.visible_to_groups.map((gid) => groupNameMap.get(gid) || gid).join(", ")}
+                      </span>
+                    )}
+                    {selectedArticle.visible_to_groups.length === 0 && (
+                      <span className="font-mono text-[10px] text-muted-foreground border border-border px-2 py-0.5">
+                        Общая
+                      </span>
+                    )}
+                  </div>
                   <h2 className="font-display text-3xl tracking-wider mt-2">{selectedArticle.title}</h2>
                   <p className="font-mono text-xs text-muted-foreground mt-1">
                     Обновлено: {new Date(selectedArticle.updated_at).toLocaleDateString("ru-RU")}
