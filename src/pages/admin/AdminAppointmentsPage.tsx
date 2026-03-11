@@ -63,7 +63,7 @@ export default function AdminAppointmentsPage() {
   const [supplyOrders, setSupplyOrders] = useState<SupplyOrder[]>([]);
   const [catalogServices, setCatalogServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
