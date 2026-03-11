@@ -192,6 +192,75 @@ export default function AppointmentFinancialBlock({
 
   return (
     <div className="space-y-5">
+      {/* Mode toggle */}
+      {canEditServices && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setUseDirectInput(false)}
+            className={`font-mono text-xs px-3 py-1.5 border-2 transition-colors ${!useDirectInput ? "border-orange bg-orange/10 text-orange" : "border-border text-muted-foreground hover:border-orange"}`}
+          >
+            Детальный расчёт
+          </button>
+          <button
+            onClick={() => setUseDirectInput(true)}
+            className={`font-mono text-xs px-3 py-1.5 border-2 transition-colors ${useDirectInput ? "border-orange bg-orange/10 text-orange" : "border-border text-muted-foreground hover:border-orange"}`}
+          >
+            Быстрый ввод
+          </button>
+        </div>
+      )}
+
+      {/* Direct input mode */}
+      {useDirectInput && canViewPrice && (
+        <div className="bg-surface border-2 border-orange/30 p-5 space-y-4">
+          <p className="font-mono text-xs text-orange uppercase tracking-widest">Быстрый расчёт стоимости</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-mono text-xs text-muted-foreground block mb-1">Стоимость работ (₽)</label>
+              {canEditServices ? (
+                <input
+                  type="number"
+                  min={0}
+                  value={directServicesCost}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value));
+                    setDirectServicesCost(v);
+                    onChange(items, directPartsCost, v, directPartsCost + v);
+                  }}
+                  className="w-full bg-background border-2 border-border px-3 py-2 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
+                />
+              ) : (
+                <span className="font-mono text-sm">{formatPrice(directServicesCost)}</span>
+              )}
+            </div>
+            <div>
+              <label className="font-mono text-xs text-muted-foreground block mb-1">Стоимость запчастей (₽)</label>
+              {canEditServices ? (
+                <input
+                  type="number"
+                  min={0}
+                  value={directPartsCost}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value));
+                    setDirectPartsCost(v);
+                    onChange(items, v, directServicesCost, v + directServicesCost);
+                  }}
+                  className="w-full bg-background border-2 border-border px-3 py-2 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
+                />
+              ) : (
+                <span className="font-mono text-sm">{formatPrice(directPartsCost)}</span>
+              )}
+            </div>
+          </div>
+          <div className="border-t border-border/50 pt-3 flex justify-between items-baseline">
+            <span className="font-display text-xl tracking-wider">ИТОГО</span>
+            <span className="font-display text-2xl text-orange tracking-wider">{formatPrice(directPartsCost + directServicesCost)}</span>
+          </div>
+        </div>
+      )}
+
+      {!useDirectInput && (
+      <>
       {/* ── Works table ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
