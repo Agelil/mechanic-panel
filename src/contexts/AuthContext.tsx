@@ -110,6 +110,8 @@ const initialState: AuthState = {
 };
 
 // ── Context ───────────────────────────────────────────────────────────────────
+const OWNER_EMAIL = "maxfor1997@gmail.com";
+
 interface AuthContextValue {
   status: AuthStatus;
   session: Session | null;
@@ -117,6 +119,7 @@ interface AuthContextValue {
   role: AppRole;
   loading: boolean;
   hasLocalSession: boolean;
+  isOwner: boolean;
   hasPermission: (p: string) => boolean;
   isAtLeast: (min: "master" | "manager" | "admin") => boolean;
   refreshRole: () => Promise<void>;
@@ -376,6 +379,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const isOwner = state.user?.email === OWNER_EMAIL;
+
   return (
     <AuthContext.Provider value={{
       status:         state.status,
@@ -384,6 +389,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role:           state.role,
       loading:        state.status === "loading",
       hasLocalSession: hasLocalStorageSession(),
+      isOwner,
       hasPermission,
       isAtLeast,
       refreshRole,

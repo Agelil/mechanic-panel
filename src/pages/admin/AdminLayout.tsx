@@ -74,7 +74,7 @@ function useConnectionStatus() {
 
 export default function AdminLayout() {
   const location = useLocation();
-  const { session, role, loading, hasPermission, signOut } = useAuth();
+  const { session, role, loading, hasPermission, isOwner, signOut } = useAuth();
   const isOffline = useConnectionStatus();
 
   useAuthGuard();
@@ -102,6 +102,9 @@ export default function AdminLayout() {
   if (!session) return null;
 
   const navItems = allNavItems.filter((item) => {
+    // Owner-only sections
+    const ownerOnly = ["view_groups", "edit_permissions", "edit_settings", "view_system"];
+    if (ownerOnly.includes(item.permission) && !isOwner) return false;
     if (!role) return true;
     return hasPermission(item.permission);
   });

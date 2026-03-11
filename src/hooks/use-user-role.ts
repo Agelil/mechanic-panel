@@ -9,7 +9,7 @@ export type { AppRole };
 export { ROLE_PERMISSIONS };
 
 export function useUserRole() {
-  const { role, loading } = useAuth();
+  const { role, loading, isOwner } = useAuth();
 
   const hasPermission = (permission: string): boolean => {
     if (!role) return false;
@@ -23,5 +23,5 @@ export function useUserRole() {
     return userLevel >= hierarchy[minRole];
   };
 
-  return { role, loading, hasPermission, isAtLeast };
+  return { role, loading, hasPermission, isAtLeast, isOwner };
 }
