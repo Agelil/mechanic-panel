@@ -468,30 +468,32 @@ export default function AdminAppointmentsPage() {
                           <span className="font-mono text-xs uppercase tracking-widest">{appt.car_vin}</span>
                         </div>
                       )}
-                      {canViewPrice && appt.total_price ? (
+                      {canViewPrice && (
                         <div>
                           <span className="font-mono text-xs text-muted-foreground block">К оплате</span>
-                          <span className="font-mono text-sm text-orange font-bold">{formatPrice(appt.total_price)}</span>
-                          {canViewPrice && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const newPaid = !appt.is_paid;
-                                await supabase.from("appointments").update({ is_paid: newPaid }).eq("id", appt.id);
-                                setAppointments((prev) => prev.map((a) => a.id === appt.id ? { ...a, is_paid: newPaid } : a));
-                                toast({ title: newPaid ? "✓ Отмечено как оплачено" : "Отмечено как неоплачено" });
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <input
+                              type="number"
+                              min={0}
+                              value={appt.total_price ?? ""}
+                              placeholder="0"
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                const val = e.target.value === "" ? null : Number(e.target.value);
+                                setAppointments((prev) =>
+                                  prev.map((a) => a.id === appt.id ? { ...a, total_price: val } : a)
+                                );
                               }}
-                              className={`mt-1 font-mono text-[10px] border px-2 py-0.5 transition-colors ${
-                                appt.is_paid
-                                  ? "text-green-400 border-green-400/30 bg-green-400/10"
-                                  : "text-destructive border-destructive/30 bg-destructive/10 hover:bg-destructive/20"
-                              }`}
-                            >
-                              {appt.is_paid ? "✓ Оплачено" : "Не оплачено"}
-                            </button>
-                          )}
+                              onBlur={async () => {
+                                await supabase.from("appointments").update({ total_price: appt.total_price }).eq("id", appt.id);
+                                toast({ title: "Сумма к оплате обновлена" });
+                              }}
+                              className="w-24 font-mono text-sm text-orange font-bold bg-transparent border border-border px-2 py-0.5 focus:outline-none focus:border-orange [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="font-mono text-xs text-muted-foreground">₽</span>
+                          </div>
                         </div>
-                      ) : null}
+                      )}
                     </div>
 
                     {/* Quick financial summary if has data */}
