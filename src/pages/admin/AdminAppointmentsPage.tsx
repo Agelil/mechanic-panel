@@ -32,6 +32,7 @@ interface Appointment {
   status: string;
   client_notified: boolean;
   created_at: string;
+  client_id: string | null;
 }
 
 interface SupplyOrder {
