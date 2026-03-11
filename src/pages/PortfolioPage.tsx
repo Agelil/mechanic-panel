@@ -237,6 +237,7 @@ export default function PortfolioPage() {
       {/* Lightbox */}
       {lightbox && (
         <PortfolioLightbox
+          images={[]}
           before={lightbox.image_before_url}
           after={lightbox.image_after_url}
           title={lightbox.title}
