@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 export default function BookingSuccessPage() {
   const navigate = useNavigate();
   const [botUsername, setBotUsername] = useState("ServiceTochkaBot");
-  const isGuest = !localStorage.getItem("tg_cabinet_user");
 
   useEffect(() => {
     supabase
@@ -83,29 +82,6 @@ export default function BookingSuccessPage() {
             В боте вы будете получать мгновенные уведомления о статусе работ, начислении бонусов и сможете посмотреть историю обслуживания.
           </p>
         </div>
-
-        {/* Guest registration CTA */}
-        {isGuest && (
-          <div className="bg-surface border-2 border-border p-6 mb-8">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
-                <Gift className="w-5 h-5 text-orange" />
-              </div>
-              <div>
-                <h3 className="font-display text-xl tracking-wider">СОЗДАЙТЕ ЛИЧНЫЙ КАБИНЕТ</h3>
-                <p className="font-mono text-xs text-muted-foreground mt-1">
-                  Отслеживайте статус ремонта, копите бонусы и получайте мгновенные уведомления через Telegram.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate("/cabinet")}
-              className="w-full border-2 border-orange text-orange px-6 py-3 font-display text-lg tracking-widest hover:bg-orange hover:text-primary-foreground transition-colors"
-            >
-              ЗАРЕГИСТРИРОВАТЬСЯ
-            </button>
-          </div>
-        )}
 
         {/* Back actions */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
