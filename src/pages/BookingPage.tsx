@@ -427,7 +427,7 @@ export default function BookingPage() {
                   <a href="/privacy" target="_blank" className="text-orange hover:underline">
                     обработку персональных данных
                   </a>{" "}
-                  в соответствии с ФЗ-152 «О персональных данных». Данные защищены шифрованием AES-256.
+                  в соответствии с ФЗ-152 «О персональных данных».
                 </span>
               </label>
               {errors.consent && (
