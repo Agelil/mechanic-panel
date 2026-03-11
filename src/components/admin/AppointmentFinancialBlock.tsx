@@ -156,11 +156,14 @@ export default function AppointmentFinancialBlock({
 
   const save = async () => {
     setSaving(true);
+    const saveParts = useDirectInput ? directPartsCost : partsCost;
+    const saveServices = useDirectInput ? directServicesCost : servicesCost;
+    const saveTotal = saveParts + saveServices;
     const { error } = await supabase.from("appointments").update({
       work_items: items as unknown as import("@/integrations/supabase/types").Json,
-      parts_cost: partsCost,
-      services_cost: servicesCost,
-      total_price: grandTotal || null,
+      parts_cost: saveParts,
+      services_cost: saveServices,
+      total_price: saveTotal || null,
     }).eq("id", appointmentId);
     if (error) {
       toast({ title: "Ошибка сохранения", description: error.message, variant: "destructive" });
