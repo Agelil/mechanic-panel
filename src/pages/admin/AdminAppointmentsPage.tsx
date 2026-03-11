@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { decryptPII, decrypt } from "@/lib/encryption";
 import { usePermission } from "@/hooks/use-permission";
 import AppointmentFinancialBlock, { type WorkItem } from "@/components/admin/AppointmentFinancialBlock";
+import OrderDocumentsBlock from "@/components/admin/OrderDocumentsBlock";
 
 interface ServiceItem {
   id: string;
@@ -492,6 +493,9 @@ export default function AdminAppointmentsPage() {
                         <p className="font-mono text-sm border-l-2 border-orange/30 pl-3 text-muted-foreground">{appt.message}</p>
                       </div>
                     )}
+
+                    {/* Order Documents */}
+                    <OrderDocumentsBlock appointmentId={appt.id} />
 
                     {/* Photos */}
                     <div>
