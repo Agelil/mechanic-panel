@@ -70,22 +70,22 @@ export default function AdminAppointmentsPage() {
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
 
   const load = async () => {
+    // Load encryption key from DB settings for consistent decryption
+    try {
+      const { data: keyRow } = await supabase.from("settings").select("value").eq("key", "encryption_key").maybeSingle();
+      if (keyRow?.value) {
+        sessionStorage.setItem("encryption_key_from_db", keyRow.value);
+      }
+    } catch { /* non-critical */ }
+
     const [{ data: appts }, { data: supply }, { data: services }] = await Promise.all([
       supabase.from("appointments").select("*").order("created_at", { ascending: false }),
       supabase.from("supply_orders").select("id, item_name, quantity, appointment_id, status"),
       supabase.from("services").select("id, name, price_from").eq("is_active", true).order("name"),
     ]);
 
-    // Debug: log encryption key used
-    import("@/lib/db-config").then(({ getEncryptionKey }) => {
-      console.log("[Encryption] key used:", getEncryptionKey());
-    });
     const decrypted = ((appts as unknown as Appointment[]) || []).map((a) => {
-      const raw = a as Appointment;
-      const nameTest = (raw.name || "").startsWith("enc:v1:");
-      console.log("[Decrypt test] name encrypted:", nameTest, "| raw:", (raw.name || "").slice(0, 30));
       const dec = decryptPII(a) as Appointment;
-      console.log("[Decrypt test] name after decryptPII:", (dec.name || "").slice(0, 30));
       return {
         ...dec,
         car_make: decrypt(dec.car_make),
