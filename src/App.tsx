@@ -117,6 +117,7 @@ const App = () => (
               <Route path="system"        element={<AdminSystemPage />} />
               <Route path="groups"        element={<AdminGroupsPage />} />
               <Route path="supply"        element={<AdminSupplyPage />} />
+              <Route path="permissions"   element={<AdminPermissionsPage />} />
               <Route path="settings"      element={<AdminSettingsPage />} />
             </Route>
 
