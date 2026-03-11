@@ -80,6 +80,8 @@ export default function AdminAppointmentsPage() {
       const dec = decryptPII(a) as Appointment;
       return {
         ...dec,
+        car_make: decrypt(dec.car_make),
+        license_plate: dec.license_plate ? decrypt(dec.license_plate) : dec.license_plate,
         work_items: Array.isArray(dec.work_items) ? dec.work_items as WorkItem[] : [],
         parts_cost: dec.parts_cost ?? 0,
         services_cost: dec.services_cost ?? 0,
