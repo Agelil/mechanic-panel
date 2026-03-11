@@ -86,6 +86,8 @@ export default function CabinetPage() {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
+  const [needsName, setNeedsName] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("tg_cabinet_user");
@@ -176,10 +178,18 @@ export default function CabinetPage() {
 
         const { data: client } = await supabase
           .from("clients")
-          .select("bonus_points")
+          .select("bonus_points, name")
           .eq("phone", clientPhone)
           .maybeSingle();
-        if (client) setBonusPoints(client.bonus_points || 0);
+        if (client) {
+          setBonusPoints(client.bonus_points || 0);
+          setClientName(client.name || null);
+          // Check if name has at least 2 words
+          const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
+          setNeedsName(!hasFullName);
+        } else {
+          setNeedsName(true);
+        }
       }
     } finally {
       setLoading(false);
@@ -311,6 +321,8 @@ export default function CabinetPage() {
               </div>
             ) : !phone ? (
               <PhoneLinkPrompt tgUser={tgUser} onLinked={(p) => { setPhone(p); loadClientData(tgUser); }} />
+            ) : needsName ? (
+              <NamePrompt phone={phone} currentName={clientName} onSaved={(name) => { setClientName(name); setNeedsName(false); }} />
             ) : appointments.length === 0 ? (
               <div className="text-center py-16 bg-surface border-2 border-dashed border-border">
                 <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />
@@ -728,6 +740,56 @@ function PhoneLinkPrompt({ tgUser, onLinked }: {
         </button>
       </div>
       {error && <p className="font-mono text-xs text-destructive mt-2">{error}</p>}
+    </div>
+  );
+}
+
+function NamePrompt({ phone, currentName, onSaved }: {
+  phone: string;
+  currentName: string | null;
+  onSaved: (name: string) => void;
+}) {
+  const [name, setName] = useState(currentName || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) { setError("Введите имя и фамилию"); return; }
+    if (!/^\S+\s+\S+/.test(trimmed)) {
+      setError("Пожалуйста, укажите фамилию для корректного оформления документов");
+      return;
+    }
+    setSaving(true);
+    await supabase.from("clients").update({ name: trimmed }).eq("phone", phone);
+    setSaving(false);
+    onSaved(trimmed);
+  };
+
+  return (
+    <div className="bg-surface border-2 border-orange/50 p-8">
+      <div className="w-14 h-14 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-5">
+        <User className="w-7 h-7 text-orange" />
+      </div>
+      <h3 className="font-display text-2xl tracking-wider mb-2 text-center">УКАЖИТЕ ИМЯ И ФАМИЛИЮ</h3>
+      <p className="font-mono text-sm text-muted-foreground mb-6 text-center">
+        Для корректного оформления документов нам нужны ваши имя и фамилия.
+      </p>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => { setName(e.target.value); setError(""); }}
+        placeholder="Иван Иванов"
+        className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange mb-3"
+      />
+      {error && <p className="font-mono text-xs text-destructive mb-3">{error}</p>}
+      <button
+        onClick={handleSave}
+        disabled={saving || !name.trim()}
+        className="w-full bg-orange text-primary-foreground px-6 py-3 font-mono text-sm hover:bg-orange-bright transition-colors disabled:opacity-50"
+      >
+        {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Сохранить и продолжить"}
+      </button>
     </div>
   );
 }

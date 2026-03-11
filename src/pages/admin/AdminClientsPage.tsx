@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Loader2, Users, Phone, Car, Star, MessageSquare, Send,
-  ChevronRight, Gift, Minus, Plus, History, Wrench, Package
+  ChevronRight, Gift, Minus, Plus, History, Wrench, Package,
+  Pencil, Trash2, AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { decrypt } from "@/lib/encryption";
@@ -61,6 +62,8 @@ export default function AdminClientsPage() {
   const canEditBonuses = usePermission("edit_bonuses");
   const canViewBonuses = usePermission("view_client_bonuses");
   const canViewHistory = usePermission("view_service_history");
+  const canManageClients = usePermission("edit_clients");
+  const canDeleteClients = usePermission("delete_clients");
 
   const [clients, setClients] = useState<Client[]>([]);
   const [tgUsers, setTgUsers] = useState<TelegramUser[]>([]);
@@ -79,16 +82,30 @@ export default function AdminClientsPage() {
   const [adjusting, setAdjusting] = useState(false);
   const [expandedAppt, setExpandedAppt] = useState<string | null>(null);
 
-  useEffect(() => {
-    Promise.all([
+  // Edit modal
+  const [editClient, setEditClient] = useState<Client | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", car_make: "", car_vin: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editNameError, setEditNameError] = useState("");
+  const [phoneWarning, setPhoneWarning] = useState(false);
+
+  // Delete modal
+  const [deleteClient, setDeleteClient] = useState<Client | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadClients = async () => {
+    setLoading(true);
+    const [c, t] = await Promise.all([
       supabase.from("clients").select("*").order("created_at", { ascending: false }),
       supabase.from("telegram_users").select("*").order("created_at", { ascending: false }),
-    ]).then(([c, t]) => {
-      setClients(c.data || []);
-      setTgUsers(t.data || []);
-      setLoading(false);
-    });
+    ]);
+    setClients(c.data || []);
+    setTgUsers(t.data || []);
+    setLoading(false);
+  };
 
+  useEffect(() => {
+    loadClients();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         supabase.from("security_audit_log").insert({
@@ -102,6 +119,89 @@ export default function AdminClientsPage() {
     });
   }, []);
 
+  // Edit handlers
+  const openEditClient = async (client: Client) => {
+    setEditClient(client);
+    setEditNameError("");
+    setPhoneWarning(false);
+    // Get car info from last appointment
+    let carMake = "", carVin = "";
+    const decPhone = decrypt(client.phone) || client.phone;
+    if (decPhone) {
+      const { data } = await supabase
+        .from("appointments")
+        .select("car_make, car_vin")
+        .eq("phone", decPhone)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      carMake = data?.car_make || "";
+      carVin = data?.car_vin || "";
+    }
+    setEditForm({
+      name: client.name || "",
+      phone: decPhone || client.phone,
+      car_make: carMake,
+      car_vin: carVin,
+    });
+  };
+
+  const saveEditClient = async () => {
+    if (!editClient) return;
+    // Validate name (min 2 words)
+    if (editForm.name.trim() && !/^\S+\s+\S+/.test(editForm.name.trim())) {
+      setEditNameError("Укажите имя и фамилию (минимум два слова)");
+      return;
+    }
+    setEditSaving(true);
+    const originalPhone = decrypt(editClient.phone) || editClient.phone;
+    const phoneChanged = editForm.phone.trim() !== originalPhone;
+
+    await supabase
+      .from("clients")
+      .update({
+        name: editForm.name.trim() || null,
+        phone: editForm.phone.trim(),
+      })
+      .eq("id", editClient.id);
+
+    setEditSaving(false);
+    setEditClient(null);
+
+    if (phoneChanged) {
+      toast({
+        title: "Данные обновлены",
+        description: "⚠️ Номер телефона изменён — клиенту может потребоваться повторная привязка Telegram.",
+      });
+    } else {
+      toast({ title: "Данные клиента обновлены" });
+    }
+    await loadClients();
+  };
+
+  // Delete handler
+  const confirmDeleteClient = async () => {
+    if (!deleteClient) return;
+    setDeleting(true);
+
+    await supabase.from("clients").delete().eq("id", deleteClient.id);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    await supabase.from("security_audit_log").insert({
+      user_id: session?.user?.id,
+      user_email: session?.user?.email,
+      action: "delete_client_account",
+      target_table: "clients",
+      target_id: deleteClient.id,
+      details: { deleted_name: deleteClient.name, deleted_phone: deleteClient.phone },
+    });
+
+    setDeleting(false);
+    setDeleteClient(null);
+    toast({ title: "Клиент удалён", description: "Данные полностью удалены из базы." });
+    await loadClients();
+  };
+
   const openClientDetail = async (client: Client) => {
     setSelectedClientId(client.id);
     setHistoryLoading(true);
@@ -110,8 +210,6 @@ export default function AdminClientsPage() {
     setBonusAdjust("");
     setBonusAdjustNote("");
 
-    // Query appointments by client_id (reliable FK link set at appointment completion)
-    // Also fetch bonus transaction history in parallel
     const [{ data: apptsByClientId }, { data: bonusTx }] = await Promise.all([
       supabase
         .from("appointments")
@@ -128,11 +226,9 @@ export default function AdminClientsPage() {
 
     let finalAppts = apptsByClientId || [];
 
-    // Fallback: if no results via client_id (legacy records), try matching by decrypted phone
     if (finalAppts.length === 0) {
       const decPhone = decrypt(client.phone);
       if (decPhone) {
-        // Fetch all appointments and filter client-side by decrypted phone
         const { data: allAppts } = await supabase
           .from("appointments")
           .select("id, car_make, car_vin, license_plate, service_type, status, created_at, total_price, work_items, services, phone")
@@ -143,7 +239,6 @@ export default function AdminClientsPage() {
           const { decrypt: dec } = await import("@/lib/encryption");
           finalAppts = allAppts.filter((a) => dec(a.phone) === decPhone);
 
-          // Backfill client_id on matched legacy appointments
           if (finalAppts.length > 0) {
             const ids = finalAppts.map((a) => a.id);
             supabase
@@ -252,7 +347,6 @@ export default function AdminClientsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: client info + bonuses */}
           <div className="space-y-4">
-            {/* Profile */}
             <div className="bg-surface border-2 border-border p-5">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
@@ -280,6 +374,26 @@ export default function AdminClientsPage() {
                   <span>Потрачено всего</span>
                   <span className="text-orange font-bold">{formatPrice(totalSpent)}</span>
                 </div>
+              </div>
+
+              {/* Edit/Delete buttons in detail view */}
+              <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+                {canManageClients && (
+                  <button
+                    onClick={() => openEditClient(selectedClient)}
+                    className="flex items-center gap-1.5 font-mono text-xs border border-border px-3 py-2 hover:border-orange hover:text-orange transition-colors"
+                  >
+                    <Pencil className="w-3 h-3" /> Редактировать
+                  </button>
+                )}
+                {canDeleteClients && (
+                  <button
+                    onClick={() => setDeleteClient(selectedClient)}
+                    className="flex items-center gap-1.5 font-mono text-xs border border-destructive/40 text-destructive px-3 py-2 hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" /> Удалить
+                  </button>
+                )}
               </div>
             </div>
 
@@ -394,72 +508,56 @@ export default function AdminClientsPage() {
                     <div key={appt.id} className={`bg-surface border-2 transition-colors ${isCompleted ? "border-border hover:border-orange/20" : "border-border/50 opacity-70"}`}>
                       <button
                         onClick={() => setExpandedAppt(isOpen ? null : appt.id)}
-                        className="w-full p-4 flex items-center gap-4 text-left"
+                        className="w-full p-4 flex items-center justify-between text-left"
                       >
-                        <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
-                          <Car className="w-5 h-5 text-orange" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <span className="font-display text-xl tracking-wider">{appt.car_make}</span>
-                            {appt.license_plate && <span className="font-mono text-xs bg-surface border border-border px-2 py-0.5">{appt.license_plate}</span>}
-                            <span className={`font-mono text-xs ${isCompleted ? "text-green-400" : "text-muted-foreground"}`}>{statusLabel}</span>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
+                            <Car className="w-4 h-4 text-orange" />
                           </div>
-                          <div className="flex items-center gap-3 mt-1 font-mono text-xs text-muted-foreground flex-wrap">
-                            <span>{new Date(appt.created_at).toLocaleDateString("ru-RU")}</span>
-                            <span>{appt.service_type}</span>
-                            {appt.car_vin && <span className="text-orange/60">VIN: {appt.car_vin}</span>}
+                          <div className="min-w-0">
+                            <p className="font-mono text-sm font-bold truncate">{appt.car_make}</p>
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {new Date(appt.created_at).toLocaleDateString("ru-RU")} · {statusLabel}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          {appt.total_price ? (
-                            <span className="font-mono text-sm font-bold text-orange">{formatPrice(appt.total_price)}</span>
-                          ) : null}
+                        <div className="flex items-center gap-2 ml-2">
+                          {appt.total_price != null && appt.total_price > 0 && (
+                            <span className="font-mono text-sm text-orange">{formatPrice(appt.total_price)}</span>
+                          )}
                           <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
                         </div>
                       </button>
 
                       {isOpen && (
-                        <div className="border-t-2 border-border p-4 space-y-4">
+                        <div className="border-t border-border p-4 space-y-2">
+                          {appt.car_vin && (
+                            <p className="font-mono text-xs text-muted-foreground">VIN: {appt.car_vin}</p>
+                          )}
+                          {appt.license_plate && (
+                            <p className="font-mono text-xs text-muted-foreground">Гос. номер: {appt.license_plate}</p>
+                          )}
                           {workItems.length > 0 && (
-                            <div>
-                              <div className="flex items-center gap-1 mb-2">
-                                <Wrench className="w-3.5 h-3.5 text-orange" />
-                                <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Выполненные работы</p>
-                              </div>
-                              <div className="space-y-1">
-                                {workItems.map((w, i) => (
-                                  <div key={i} className="flex justify-between font-mono text-sm py-1 border-b border-border/30 last:border-0">
-                                    <span>{w.name}{w.qty > 1 ? ` × ${w.qty}` : ""}</span>
-                                    {w.unit_price > 0 && <span className="text-orange ml-4 flex-shrink-0">{formatPrice(w.qty * w.unit_price)}</span>}
-                                  </div>
-                                ))}
-                              </div>
+                            <div className="space-y-1 mt-2">
+                              {workItems.map((w: any, i: number) => (
+                                <div key={i} className="flex justify-between font-mono text-xs">
+                                  <span className="flex items-center gap-1">
+                                    {w.type === "part" ? <Package className="w-3 h-3" /> : <Wrench className="w-3 h-3" />}
+                                    {w.name}
+                                  </span>
+                                  <span className="text-orange">{formatPrice(w.unit_price || w.price || 0)}</span>
+                                </div>
+                              ))}
                             </div>
                           )}
                           {services.length > 0 && workItems.length === 0 && (
-                            <div>
-                              <div className="flex items-center gap-1 mb-2">
-                                <Package className="w-3.5 h-3.5 text-orange" />
-                                <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Услуги</p>
-                              </div>
-                              <div className="space-y-1">
-                                {services.map((s, i) => (
-                                  <div key={i} className="flex justify-between font-mono text-sm py-1 border-b border-border/30 last:border-0">
-                                    <span>{s.name}</span>
-                                    {s.price_from > 0 && <span className="text-orange ml-4 flex-shrink-0">от {formatPrice(s.price_from)}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {workItems.length === 0 && services.length === 0 && (
-                            <p className="font-mono text-xs text-muted-foreground">Состав работ не указан</p>
-                          )}
-                          {appt.total_price && (
-                            <div className="flex justify-between items-center pt-2 border-t-2 border-orange/20">
-                              <span className="font-mono text-sm font-bold">Итого</span>
-                              <span className="font-display text-2xl text-orange">{formatPrice(appt.total_price)}</span>
+                            <div className="space-y-1 mt-2">
+                              {services.map((s: any, i: number) => (
+                                <div key={i} className="flex justify-between font-mono text-xs">
+                                  <span>{s.name}</span>
+                                  <span className="text-orange">от {formatPrice(s.price_from)}</span>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -475,135 +573,268 @@ export default function AdminClientsPage() {
     );
   }
 
-  // ── Main clients list ────────────────────────────────────────────
+  // ── Main list ────────────────────────────────────────────────────
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="font-display text-4xl tracking-wider">КЛИЕНТЫ</h1>
-          <p className="font-mono text-sm text-muted-foreground">База клиентов и Telegram-подписчики</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="font-mono text-xs text-muted-foreground">{clients.length} клиентов</span>
-          <span className="font-mono text-xs text-orange">{tgUsers.length} в Telegram</span>
+          <p className="font-mono text-sm text-muted-foreground">CRM: клиентская база, бонусы и Telegram</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-px bg-border mb-6 w-fit">
-        {(["clients", "telegram"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2.5 font-mono text-xs uppercase tracking-widest transition-colors ${tab === t ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground hover:bg-surface"}`}>
-            {t === "clients" ? `Клиенты (${clients.length})` : `Telegram (${tgUsers.length})`}
+      <div className="flex gap-0.5 mb-6">
+        {[
+          { key: "clients" as const, label: "Клиенты", icon: Users, count: clients.length },
+          { key: "telegram" as const, label: "Telegram", icon: MessageSquare, count: tgUsers.length },
+        ].map(({ key, label, icon: Icon, count }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex items-center gap-2 px-5 py-3 font-mono text-sm border-2 transition-colors ${
+              tab === key ? "bg-orange text-primary-foreground border-orange" : "bg-surface border-border hover:border-orange"
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+            <span className="text-xs opacity-70">({count})</span>
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-orange animate-spin" /></div>
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-6 h-6 text-orange animate-spin" />
+        </div>
       ) : tab === "clients" ? (
-        <>
-          {clients.length === 0 ? (
-            <div className="text-center py-16 border-2 border-dashed border-border">
-              <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="font-mono text-sm text-muted-foreground">Клиентов пока нет. Они появятся после первых заявок.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {clients.map((client) => (
+        <div className="space-y-2">
+          {clients.map((client) => {
+            const decPhone = decrypt(client.phone) || client.phone;
+            return (
+              <div key={client.id} className="bg-surface border-2 border-border p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-orange/30 transition-colors">
                 <button
-                  key={client.id}
                   onClick={() => openClientDetail(client)}
-                  className="w-full bg-surface border-2 border-border hover:border-orange/40 transition-colors p-5 text-left group"
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
                 >
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-5 h-5 text-orange" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-display text-xl tracking-wider">{client.name || "Без имени"}</h3>
-                      <div className="flex flex-wrap gap-4 mt-1">
-                        <span className="flex items-center gap-1 font-mono text-sm">
-                          <Phone className="w-3 h-3 text-orange" />
-                          {decrypt(client.phone)}
-                        </span>
-                        {client.telegram_username && (
-                          <span className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
-                            <MessageSquare className="w-3 h-3" />@{client.telegram_username}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1 font-mono text-sm text-orange">
-                          <Star className="w-3 h-3" />{client.bonus_points} бонусов
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {new Date(client.created_at).toLocaleDateString("ru-RU")}
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-orange transition-colors" />
-                    </div>
+                  <div className="w-10 h-10 bg-orange/10 border border-orange/20 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-5 h-5 text-orange" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-bold truncate">{client.name || "Без имени"}</p>
+                    <p className="font-mono text-xs text-muted-foreground flex items-center gap-1">
+                      <Phone className="w-3 h-3" /> {decPhone}
+                    </p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {new Date(client.created_at).toLocaleDateString("ru-RU")}
+                    </p>
                   </div>
                 </button>
-              ))}
+
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="text-center">
+                    <span className="font-display text-xl text-orange">{client.bonus_points}</span>
+                    <span className="font-mono text-xs text-muted-foreground block">баллов</span>
+                  </div>
+                  {client.telegram_chat_id && (
+                    <span className="font-mono text-xs border border-blue-400/30 bg-blue-400/10 text-blue-400 px-2 py-0.5">TG</span>
+                  )}
+
+                  {canManageClients && (
+                    <button
+                      onClick={() => openEditClient(client)}
+                      className="p-2 text-muted-foreground hover:text-orange border border-border hover:border-orange transition-colors"
+                      title="Редактировать"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  {canDeleteClients && (
+                    <button
+                      onClick={() => setDeleteClient(client)}
+                      className="p-2 text-muted-foreground hover:text-destructive border border-border hover:border-destructive transition-colors"
+                      title="Удалить"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  <ChevronRight
+                    className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-orange"
+                    onClick={() => openClientDetail(client)}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          {clients.length === 0 && (
+            <div className="text-center py-16 border-2 border-dashed border-border">
+              <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+              <p className="font-mono text-sm text-muted-foreground">Клиентов пока нет</p>
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <>
+        <div className="space-y-4">
           {/* Broadcast */}
-          <div className="bg-surface border-2 border-orange/30 p-5 mb-6">
-            <h3 className="font-display text-xl tracking-wider mb-3 flex items-center gap-2">
-              <Send className="w-5 h-5 text-orange" />
-              РАССЫЛКА ВСЕМ ПОДПИСЧИКАМ
-            </h3>
-            <p className="font-mono text-xs text-muted-foreground mb-4">
-              Сообщение получат <strong>{tgUsers.filter(u => u.is_active).length}</strong> активных подписчиков Telegram-бота.
-            </p>
-            <textarea
-              value={broadcastMsg}
-              onChange={(e) => setBroadcastMsg(e.target.value)}
-              placeholder="🎉 Новая акция! Скидка 20% на ТО до конца месяца."
-              rows={4}
-              className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors resize-none mb-3"
-            />
-            <button onClick={handleBroadcast} disabled={broadcasting || !broadcastMsg.trim()}
-              className="flex items-center gap-2 bg-orange text-primary-foreground px-5 py-2.5 font-mono text-sm hover:bg-orange-bright transition-colors disabled:opacity-50 shadow-brutal-sm">
-              {broadcasting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {broadcasting ? "Отправляем..." : "Отправить рассылку"}
-            </button>
+          <div className="bg-surface border-2 border-border p-5">
+            <h3 className="font-display text-xl tracking-wider mb-3">РАССЫЛКА</h3>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={broadcastMsg}
+                onChange={(e) => setBroadcastMsg(e.target.value)}
+                placeholder="Текст сообщения..."
+                className="flex-1 bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange"
+              />
+              <button
+                onClick={handleBroadcast}
+                disabled={broadcasting || !broadcastMsg.trim()}
+                className="bg-orange text-primary-foreground px-6 py-3 font-mono text-sm flex items-center gap-2 hover:bg-orange-bright transition-colors disabled:opacity-50"
+              >
+                {broadcasting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Отправить
+              </button>
+            </div>
           </div>
 
-          {tgUsers.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed border-border">
-              <MessageSquare className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="font-mono text-sm text-muted-foreground">Подписчиков пока нет.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {tgUsers.map((user) => (
-                <div key={user.id} className={`bg-surface border-2 transition-colors p-4 flex items-center gap-4 ${user.is_active ? "border-border hover:border-orange/20" : "border-border/30 opacity-50"}`}>
-                  <div className="w-8 h-8 bg-orange/10 flex items-center justify-center flex-shrink-0">
-                    <MessageSquare className="w-4 h-4 text-orange" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold">{user.first_name || "Без имени"}</span>
-                      {user.username && <span className="font-mono text-xs text-muted-foreground">@{user.username}</span>}
-                      <span className="font-mono text-xs text-orange/70">ID: {user.chat_id}</span>
-                    </div>
-                    {user.phone && (
-                      <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
-                        <Phone className="w-3 h-3" />{user.phone}
-                      </span>
-                    )}
-                  </div>
-                  <span className="font-mono text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("ru-RU")}</span>
+          <div className="space-y-2">
+            {tgUsers.map((u) => (
+              <div key={u.id} className="bg-surface border-2 border-border p-4 flex items-center gap-4">
+                <div className="w-10 h-10 bg-blue-400/10 border border-blue-400/20 flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-5 h-5 text-blue-400" />
                 </div>
-              ))}
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono text-sm font-bold">{u.first_name || "—"}</p>
+                  {u.username && <p className="font-mono text-xs text-muted-foreground">@{u.username}</p>}
+                  {u.phone && <p className="font-mono text-xs text-muted-foreground">📞 {u.phone}</p>}
+                </div>
+                <span className={`font-mono text-xs border px-2 py-0.5 ${u.is_active ? "text-green-400 border-green-400/30 bg-green-400/10" : "text-muted-foreground border-border"}`}>
+                  {u.is_active ? "Активен" : "Неактивен"}
+                </span>
+              </div>
+            ))}
+            {tgUsers.length === 0 && (
+              <div className="text-center py-12 border-2 border-dashed border-border">
+                <p className="font-mono text-sm text-muted-foreground">Нет Telegram-подписчиков</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Client Modal */}
+      {editClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="bg-surface border-2 border-border shadow-brutal w-full max-w-md p-6">
+            <h3 className="font-display text-xl tracking-wider mb-5">РЕДАКТИРОВАНИЕ КЛИЕНТА</h3>
+            <p className="font-mono text-xs text-muted-foreground mb-4">{editClient.name || "Без имени"}</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Имя и Фамилия</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => { setEditForm(p => ({ ...p, name: e.target.value })); setEditNameError(""); }}
+                  placeholder="Иван Иванов"
+                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
+                />
+                {editNameError && <p className="font-mono text-xs text-destructive mt-1">{editNameError}</p>}
+              </div>
+              <div>
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Телефон</label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => {
+                    setEditForm(p => ({ ...p, phone: e.target.value }));
+                    const orig = decrypt(editClient.phone) || editClient.phone;
+                    setPhoneWarning(e.target.value !== orig);
+                  }}
+                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
+                />
+                {phoneWarning && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-orange">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span className="font-mono text-xs">При смене номера потребуется повторная привязка Telegram</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">Автомобиль</label>
+                <input
+                  type="text"
+                  value={editForm.car_make}
+                  onChange={(e) => setEditForm(p => ({ ...p, car_make: e.target.value }))}
+                  placeholder="Toyota Camry 2020"
+                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors"
+                  disabled
+                />
+                <p className="font-mono text-xs text-muted-foreground mt-1">Данные авто подтягиваются из заказов</p>
+              </div>
+              <div>
+                <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-1">VIN</label>
+                <input
+                  type="text"
+                  value={editForm.car_vin}
+                  onChange={(e) => setEditForm(p => ({ ...p, car_vin: e.target.value.toUpperCase() }))}
+                  maxLength={17}
+                  className="w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase"
+                  disabled
+                />
+              </div>
             </div>
-          )}
-        </>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setEditClient(null)}
+                className="flex-1 font-mono text-sm border-2 border-border py-2.5 hover:border-muted-foreground transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={saveEditClient}
+                disabled={editSaving}
+                className="flex-1 bg-orange text-primary-foreground font-mono text-sm py-2.5 flex items-center justify-center gap-2 hover:bg-orange-bright transition-colors disabled:opacity-50"
+              >
+                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                Сохранить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Client Confirmation */}
+      {deleteClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="bg-surface border-2 border-destructive shadow-brutal w-full max-w-sm p-6">
+            <h3 className="font-display text-xl tracking-wider text-destructive mb-3">УДАЛИТЬ КЛИЕНТА?</h3>
+            <p className="font-mono text-sm text-muted-foreground mb-2">
+              {deleteClient.name || "Без имени"}
+            </p>
+            <p className="font-mono text-xs text-muted-foreground mb-5">
+              Все данные клиента, включая историю бонусов, будут удалены. Это действие нельзя отменить.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteClient(null)}
+                className="flex-1 font-mono text-sm border-2 border-border py-2.5 hover:border-muted-foreground transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={confirmDeleteClient}
+                disabled={deleting}
+                className="flex-1 bg-destructive text-destructive-foreground font-mono text-sm py-2.5 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

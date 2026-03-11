@@ -20,7 +20,7 @@ const allNavItems = [
   { href: "/admin/promotions",  label: "Акции",            icon: Tag,                         permission: "view_promotions" },
   { href: "/admin/clients",     label: "Клиенты",          icon: Users,                       permission: "view_clients" },
   { href: "/admin/reviews",     label: "Отзывы",           icon: Star,                        permission: "view_promotions" },
-  { href: "/admin/users",       label: "Пользователи",     icon: UserCog,                     permission: "view_users" },
+  { href: "/admin/users",       label: "Сотрудники",       icon: UserCog,                     permission: "view_users" },
   { href: "/admin/groups",      label: "Группы и права",   icon: UsersRound,                  permission: "view_groups" },
   { href: "/admin/access",      label: "Доступ",           icon: ShieldCheck,                 permission: "view_users" },
   { href: "/admin/settings",    label: "Настройки",        icon: Settings,                    permission: "view_settings" },
