@@ -252,17 +252,27 @@ export default function CabinetPage() {
               <div className="w-16 h-16 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-6">
                 <Shield className="w-8 h-8 text-orange" />
               </div>
-              <h2 className="font-display text-3xl tracking-wider mb-3">ВОЙДИТЕ ЧЕРЕЗ TELEGRAM</h2>
+              <h2 className="font-display text-3xl tracking-wider mb-3">ВОЙДИТЕ В КАБИНЕТ</h2>
               <p className="font-mono text-sm text-muted-foreground mb-8 leading-relaxed">
-                Для доступа к личному кабинету войдите через официальный Telegram Login Widget.
+                Для доступа к истории заказов, документам и бонусам.
               </p>
+              
+              {/* Email login button */}
+              <a
+                href="/login?returnTo=/cabinet"
+                className="w-full inline-flex items-center justify-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors mb-4"
+              >
+                Войти по Email
+              </a>
+
+              {/* Telegram widget */}
+              <p className="font-mono text-xs text-muted-foreground mb-3">или через Telegram</p>
               <div ref={widgetRef} className="flex justify-center mb-6" />
-              <div className="mt-6 bg-orange/5 border border-orange/20 p-4 text-left">
+
+              <div className="mt-4 bg-orange/5 border border-orange/20 p-4 text-left">
                 <p className="font-mono text-xs text-muted-foreground leading-relaxed">
-                  <span className="text-orange font-bold">Нет Telegram?</span><br />
-                  Используйте нашего бота: напишите{" "}
-                  <span className="text-orange">/start</span> и команду{" "}
-                  <span className="text-orange">/status [телефон]</span>
+                  <span className="text-orange font-bold">Нет аккаунта?</span>{" "}
+                  <a href="/register?returnTo=/cabinet" className="text-orange hover:text-orange-bright underline">Зарегистрироваться</a>
                 </p>
               </div>
             </div>
