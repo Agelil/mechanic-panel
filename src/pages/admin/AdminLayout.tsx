@@ -1,112 +1,90 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
   Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
   ShieldCheck, ServerCog, ShoppingCart, UsersRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 
 const allNavItems = [
-  { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, permission: "view_dashboard" },
-  { href: "/admin/appointments", label: "Заявки", icon: ClipboardList, permission: "view_appointments" },
-  { href: "/admin/supply", label: "Снабжение", icon: ShoppingCart, permission: "view_appointments" },
-  { href: "/admin/services", label: "Услуги", icon: Wrench, permission: "view_services" },
-  { href: "/admin/categories", label: "Категории", icon: FolderOpen, permission: "view_categories" },
-  { href: "/admin/portfolio", label: "Портфолио", icon: Images, permission: "view_portfolio" },
-  { href: "/admin/promotions", label: "Акции", icon: Tag, permission: "view_promotions" },
-  { href: "/admin/clients", label: "Клиенты", icon: Users, permission: "view_clients" },
-  { href: "/admin/reviews", label: "Отзывы", icon: Star, permission: "view_promotions" },
-  { href: "/admin/users", label: "Пользователи", icon: UserCog, permission: "view_users" },
-  { href: "/admin/groups", label: "Группы и права", icon: UsersRound, permission: "edit_settings" },
-  { href: "/admin/access", label: "Доступ", icon: ShieldCheck, permission: "view_users" },
-  { href: "/admin/settings", label: "Настройки", icon: Settings, permission: "view_settings" },
-  { href: "/admin/system", label: "Система", icon: ServerCog, permission: "edit_settings" },
+  { href: "/admin",             label: "Дашборд",        icon: LayoutDashboard, exact: true, permission: "view_dashboard" },
+  { href: "/admin/appointments",label: "Заявки",          icon: ClipboardList,               permission: "view_appointments" },
+  { href: "/admin/supply",      label: "Снабжение",       icon: ShoppingCart,                permission: "view_appointments" },
+  { href: "/admin/services",    label: "Услуги",           icon: Wrench,                      permission: "view_services" },
+  { href: "/admin/categories",  label: "Категории",        icon: FolderOpen,                  permission: "view_categories" },
+  { href: "/admin/portfolio",   label: "Портфолио",        icon: Images,                      permission: "view_portfolio" },
+  { href: "/admin/promotions",  label: "Акции",            icon: Tag,                         permission: "view_promotions" },
+  { href: "/admin/clients",     label: "Клиенты",          icon: Users,                       permission: "view_clients" },
+  { href: "/admin/reviews",     label: "Отзывы",           icon: Star,                        permission: "view_promotions" },
+  { href: "/admin/users",       label: "Пользователи",     icon: UserCog,                     permission: "view_users" },
+  { href: "/admin/groups",      label: "Группы и права",   icon: UsersRound,                  permission: "edit_settings" },
+  { href: "/admin/access",      label: "Доступ",           icon: ShieldCheck,                 permission: "view_users" },
+  { href: "/admin/settings",    label: "Настройки",        icon: Settings,                    permission: "view_settings" },
+  { href: "/admin/system",      label: "Система",          icon: ServerCog,                   permission: "edit_settings" },
 ];
 
+const ROLE_BADGE: Record<string, string> = {
+  admin:   "ADMIN",
+  manager: "MANAGER",
+  master:  "MASTER",
+};
+
+// Skeleton строки для навигации во время загрузки
+function NavSkeleton() {
+  return (
+    <div className="flex-1 py-4 space-y-1 px-4">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={i} className="h-10 bg-sidebar-accent/40 animate-pulse rounded-sm" style={{ opacity: 1 - i * 0.1 }} />
+      ))}
+    </div>
+  );
+}
+
 export default function AdminLayout() {
-  const navigate = useNavigate();
   const location = useLocation();
+  const { session, role, loading, hasPermission, signOut } = useAuth();
+
+  // Guard: проверяет сессию, профиль и редиректит при необходимости
+  useAuthGuard();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState("");
-  const { role, loading: roleLoading, hasPermission } = useUserRole();
-
-  useEffect(() => {
-    const checkProfile = async (userId: string) => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_approved, is_blocked")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (profile && (!profile.is_approved || profile.is_blocked)) {
-        navigate("/admin/pending");
-      }
-    };
-
-    // Сначала получаем текущую сессию
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) {
-        navigate("/admin/login");
-        setAuthLoading(false);
-        return;
-      }
-      setUserEmail(session.user.email || "");
-      await checkProfile(session.user.id);
-      setAuthLoading(false);
-    });
-
-    // Слушаем только реальные изменения сессии (логаут, истечение токена)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") {
-        navigate("/admin/login");
-        return;
-      }
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        if (session) {
-          setUserEmail(session.user.email || "");
-        }
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/admin/login");
+    await signOut();
   };
-
-  if (authLoading || roleLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-2 border-orange border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   const isActive = (item: typeof allNavItems[0]) => {
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
   };
 
-  // Filter nav by role permissions (if no role, show all for backward compat with old admin users)
+  // Пока auth грузится — показываем полноэкранный спиннер
+  if (loading || session === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-orange border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="font-mono text-xs text-muted-foreground">Проверка доступа...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Нет сессии — useAuthGuard уже запустил редирект, рендерим null чтобы не мигать
+  if (!session) return null;
+
+  // Фильтрация навигации по правам (если роль ещё не загружена — скрываем, не ломаем)
   const navItems = allNavItems.filter((item) => {
-    if (!role) return true; // legacy: no role assigned = admin-level access
+    if (!role) return true; // legacy: нет роли = полный доступ
     return hasPermission(item.permission);
   });
 
-  const ROLE_BADGE: Record<string, string> = {
-    admin: "ADMIN",
-    manager: "MANAGER",
-    master: "MASTER",
-  };
-
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r-2 border-sidebar-border flex flex-col transition-transform duration-200",
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
@@ -122,35 +100,39 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item);
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-6 py-3 font-mono text-sm transition-all",
-                  "hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  active
-                    ? "bg-sidebar-accent text-orange border-r-2 border-orange"
-                    : "text-sidebar-foreground/70"
-                )}
-              >
-                <Icon className={cn("w-4 h-4", active ? "text-orange" : "")} />
-                {item.label}
-                {active && <ChevronRight className="w-3 h-3 ml-auto text-orange" />}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Nav — skeleton пока роль не загружена */}
+        {loading ? <NavSkeleton /> : (
+          <nav className="flex-1 py-4 overflow-y-auto">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item);
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-6 py-3 font-mono text-sm transition-all",
+                    "hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    active
+                      ? "bg-sidebar-accent text-orange border-r-2 border-orange"
+                      : "text-sidebar-foreground/70"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4", active ? "text-orange" : "")} />
+                  {item.label}
+                  {active && <ChevronRight className="w-3 h-3 ml-auto text-orange" />}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Footer */}
         <div className="border-t-2 border-sidebar-border p-4">
-          <p className="font-mono text-xs text-muted-foreground mb-1 truncate">{userEmail}</p>
+          <p className="font-mono text-xs text-muted-foreground mb-1 truncate">
+            {session.user.email}
+          </p>
           {role && (
             <p className="font-mono text-xs text-orange mb-3">{ROLE_BADGE[role]}</p>
           )}
@@ -175,10 +157,13 @@ export default function AdminLayout() {
 
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-background/80 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 bg-background/80 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Main */}
+      {/* ── Main ── */}
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background border-b-2 border-border h-14 flex items-center px-4 gap-4">
