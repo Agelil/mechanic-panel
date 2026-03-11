@@ -3,13 +3,7 @@ import { ArrowRight, Shield, Zap, Eye, CheckCircle2, Phone, Tag, Percent } from 
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ReviewsSection } from "@/components/ReviewsSection";
-
-const stats = [
-  { value: "12+", label: "лет на рынке" },
-  { value: "3 800+", label: "выполненных работ" },
-  { value: "98%", label: "довольных клиентов" },
-  { value: "24ч", label: "срочный ремонт" },
-];
+import { useSiteSettings } from "@/hooks/use-site-settings";
 
 const features = [
   {
@@ -69,12 +63,11 @@ function PromotionsSection() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border">
-          {promotions.map((promo, i) => (
+          {promotions.map((promo) => (
             <div key={promo.id} className="bg-background hover:bg-surface transition-colors group relative overflow-hidden">
-              {promo.image_url && (
+              {promo.image_url ? (
                 <img src={promo.image_url} alt={promo.title} className="w-full h-40 object-cover" />
-              )}
-              {!promo.image_url && (
+              ) : (
                 <div className="w-full h-40 bg-orange/5 flex items-center justify-center border-b-2 border-border">
                   <Percent className="w-16 h-16 text-orange/20" />
                 </div>
@@ -109,6 +102,15 @@ function PromotionsSection() {
 }
 
 export default function HomePage() {
+  const { settings } = useSiteSettings();
+
+  const stats = [
+    { value: "12+", label: "лет на рынке" },
+    { value: "3 800+", label: "выполненных работ" },
+    { value: "98%", label: "довольных клиентов" },
+    { value: "24ч", label: "срочный ремонт" },
+  ];
+
   return (
     <div className="min-h-screen">
       {/* HERO */}
@@ -119,13 +121,19 @@ export default function HomePage() {
             <div className="inline-flex items-center gap-2 bg-orange/10 border border-orange/30 px-3 py-1 mb-8">
               <span className="w-2 h-2 bg-orange rounded-full animate-pulse" />
               <span className="font-mono text-xs text-orange uppercase tracking-widest">
-                Автосервис · Санкт-Петербург
+                Автосервис · {settings.site_address.split(",")[0]}
               </span>
             </div>
             <h1 className="font-display text-[clamp(4rem,12vw,9rem)] leading-none tracking-wider mb-6">
-              СЕРВИС
-              <br />
-              <span className="text-orange">ТОЧКА</span>
+              {settings.site_name.toUpperCase().includes("-") ? (
+                <>
+                  {settings.site_name.toUpperCase().split("-")[0]}
+                  <br />
+                  <span className="text-orange">{settings.site_name.toUpperCase().split("-")[1]}</span>
+                </>
+              ) : (
+                settings.site_name.toUpperCase()
+              )}
             </h1>
             <div className="flex items-center gap-4 mb-10">
               <div className="h-0.5 w-12 bg-orange" />
@@ -134,19 +142,21 @@ export default function HomePage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link
-                to="/booking"
-                className="inline-flex items-center justify-center gap-3 bg-orange text-primary-foreground px-8 py-4 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg group"
-              >
-                Записаться на сервис
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              {settings.module_booking && (
+                <Link
+                  to="/booking"
+                  className="inline-flex items-center justify-center gap-3 bg-orange text-primary-foreground px-8 py-4 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors shadow-brutal-lg group"
+                >
+                  Записаться на сервис
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              )}
               <a
-                href="tel:+78121234567"
+                href={`tel:${settings.site_phone.replace(/\D/g, "")}`}
                 className="inline-flex items-center justify-center gap-3 bg-transparent border-2 border-foreground text-foreground px-8 py-4 font-display text-xl tracking-widest hover:border-orange hover:text-orange transition-colors"
               >
                 <Phone className="w-5 h-5" />
-                +7 (812) 123-45-67
+                {settings.site_phone}
               </a>
             </div>
           </div>
@@ -157,8 +167,10 @@ export default function HomePage() {
             <div className="w-64 h-64 border-2 border-orange/10 absolute -top-8 -left-8" />
             <div className="w-64 h-64 bg-surface border-2 border-border flex items-center justify-center">
               <div className="text-center">
-                <span className="font-display text-7xl text-orange">SP</span>
-                <p className="font-mono text-xs text-muted-foreground mt-2 tracking-widest">СЕРВИС-ТОЧКА</p>
+                <span className="font-display text-7xl text-orange">
+                  {settings.site_name.split("-").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                </span>
+                <p className="font-mono text-xs text-muted-foreground mt-2 tracking-widest">{settings.site_name.toUpperCase()}</p>
               </div>
             </div>
           </div>
@@ -190,11 +202,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PROMOTIONS (dynamic from DB) */}
+      {/* PROMOTIONS */}
       <PromotionsSection />
 
-      {/* REVIEWS (dynamic from DB) */}
-      <ReviewsSection />
+      {/* REVIEWS */}
+      {settings.module_reviews && <ReviewsSection />}
 
       {/* FEATURES */}
       <section className="py-24">
@@ -246,27 +258,29 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24">
-        <div className="container mx-auto px-4">
-          <div className="relative bg-orange p-12 md:p-16 shadow-brutal-lg">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-primary-foreground/20" />
-            <div className="max-w-2xl">
-              <h2 className="font-display text-5xl md:text-7xl tracking-wider text-primary-foreground mb-4 leading-none">
-                ЗАПИШИТЕСЬ<br />ПРЯМО СЕЙЧАС
-              </h2>
-              <p className="font-mono text-sm text-primary-foreground/80 mb-8 leading-relaxed">
-                Оставьте заявку — мы перезвоним в течение 15 минут и согласуем удобное время.
-              </p>
-              <Link
-                to="/booking"
-                className="inline-flex items-center gap-3 bg-primary-foreground text-primary px-8 py-4 font-display text-2xl tracking-widest hover:bg-primary-foreground/90 transition-colors shadow-brutal"
-              >
-                Записаться →
-              </Link>
+      {settings.module_booking && (
+        <section className="py-24">
+          <div className="container mx-auto px-4">
+            <div className="relative bg-orange p-12 md:p-16 shadow-brutal-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-primary-foreground/20" />
+              <div className="max-w-2xl">
+                <h2 className="font-display text-5xl md:text-7xl tracking-wider text-primary-foreground mb-4 leading-none">
+                  ЗАПИШИТЕСЬ<br />ПРЯМО СЕЙЧАС
+                </h2>
+                <p className="font-mono text-sm text-primary-foreground/80 mb-8 leading-relaxed">
+                  Оставьте заявку — мы перезвоним в течение 15 минут и согласуем удобное время.
+                </p>
+                <Link
+                  to="/booking"
+                  className="inline-flex items-center gap-3 bg-primary-foreground text-primary px-8 py-4 font-display text-2xl tracking-widest hover:bg-primary-foreground/90 transition-colors shadow-brutal"
+                >
+                  Записаться →
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

@@ -123,7 +123,11 @@ export default function PortfolioPage() {
         .select("*")
         .eq("is_published", true)
         .order("created_at", { ascending: false });
-      setItems(error || !data?.length ? PLACEHOLDER_ITEMS : data);
+      if (!error && data?.length) {
+        setItems(data);
+      } else if (!data?.length) {
+        setItems(PLACEHOLDER_ITEMS);
+      }
       setLoading(false);
     }
     fetchPortfolio();
