@@ -290,6 +290,7 @@ export default function CabinetPage() {
     setCars(prev => prev.filter(c => c.id !== carId));
   };
 
+  const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
   const historyOrders = appointments.filter((a) => TERMINAL.includes(a.status));
   const currentAppt = activeOrders[0] || null;
 
