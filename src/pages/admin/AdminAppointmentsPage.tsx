@@ -92,6 +92,43 @@ export default function AdminAppointmentsPage() {
 
   useEffect(() => { load(); }, []);
 
+  const upsertClient = async (appt: Appointment) => {
+    if (!appt.phone) return;
+    // Use encrypted phone as the unique key (match on encrypted value)
+    const { data: existing } = await supabase
+      .from("clients")
+      .select("id, car_history")
+      .eq("phone", appt.phone)
+      .maybeSingle();
+
+    const carEntry = appt.car_make
+      ? { car_make: appt.car_make, service_type: appt.service_type, date: appt.created_at }
+      : null;
+
+    if (existing) {
+      // Update name if missing, append car history
+      const history = Array.isArray(existing.car_history) ? existing.car_history : [];
+      const alreadyHas = history.some(
+        (h) => typeof h === "object" && h !== null && !Array.isArray(h) &&
+          (h as Record<string, unknown>).car_make === appt.car_make &&
+          (h as Record<string, unknown>).date === appt.created_at
+      );
+      const newHistory = carEntry && !alreadyHas ? [...history, carEntry] : history;
+      await supabase.from("clients").update({
+        name: appt.name || undefined,
+        car_history: newHistory,
+      }).eq("id", existing.id);
+    } else {
+      // Create new client
+      await supabase.from("clients").insert({
+        phone: appt.phone,
+        name: appt.name || null,
+        car_history: carEntry ? [carEntry] : [],
+        bonus_points: 0,
+      });
+    }
+  };
+
   const updateStatus = async (id: string, status: string) => {
     await supabase.from("appointments").update({ status }).eq("id", id);
     const appt = appointments.find((a) => a.id === id);
@@ -99,6 +136,13 @@ export default function AdminAppointmentsPage() {
     setAppointments((prev) => prev.map((a) => a.id === id ? { ...a, status } : a));
 
     if (!updatedAppt) return;
+
+    // Auto-create/update client on terminal statuses
+    if (["ready", "completed"].includes(status)) {
+      try {
+        await upsertClient(updatedAppt);
+      } catch { /* non-critical */ }
+    }
 
     try {
       await supabase.functions.invoke("send-telegram-notification", {
