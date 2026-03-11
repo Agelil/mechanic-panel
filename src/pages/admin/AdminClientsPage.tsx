@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Loader2, Users, Phone, Car, Star, MessageSquare, Send,
   ChevronRight, Gift, Minus, Plus, History, Wrench, Package,
-  Pencil, Trash2, AlertTriangle
+  Pencil, Trash2, AlertTriangle, Mail
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { decrypt } from "@/lib/encryption";
