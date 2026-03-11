@@ -151,6 +151,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (DEV) console.log("[Auth] Role from sessionStorage cache:", cached);
         dispatch({ type: "ROLE_SET", role: cached as AppRole });
         roleFetchedRef.current = userId;
+        // Still load permissions from DB in background
+        supabase
+          .from("role_permissions")
+          .select("permission")
+          .eq("role", cached)
+          .then(({ data }) => {
+            if (data) dbPermissionsCache.set(userId, new Set(data.map((d: { permission: string }) => d.permission)));
+          });
         return;
       }
     }
@@ -177,8 +185,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (DEV) console.log("[Auth] Role from DB:", r);
     dispatch({ type: "ROLE_SET", role: r });
     roleFetchedRef.current = userId;
-    if (r) cacheRole(userId, r);
-    else clearRoleCache();
+    if (r) {
+      cacheRole(userId, r);
+      // Load granular permissions from role_permissions table
+      const { data: permsData } = await supabase
+        .from("role_permissions")
+        .select("permission")
+        .eq("role", r);
+      if (permsData) {
+        dbPermissionsCache.set(userId, new Set(permsData.map((d: { permission: string }) => d.permission)));
+        if (DEV) console.log("[Auth] Loaded", permsData.length, "permissions for role:", r);
+      }
+    } else {
+      clearRoleCache();
+      dbPermissionsCache.delete(userId);
+    }
   }, []);
 
   const refreshRole = useCallback(async () => {
