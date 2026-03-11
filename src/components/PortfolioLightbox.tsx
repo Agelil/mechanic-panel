@@ -1,18 +1,33 @@
-import { useEffect, useCallback } from "react";
-import { X } from "lucide-react";
+import { useEffect, useCallback, useState } from "react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
 
 interface LightboxProps {
-  before: string | null;
-  after: string | null;
+  images: { url: string; label?: string }[];
+  before?: string | null;
+  after?: string | null;
   title: string;
+  initialIndex?: number;
   onClose: () => void;
 }
 
-export function PortfolioLightbox({ before, after, title, onClose }: LightboxProps) {
+export function PortfolioLightbox({ images, before, after, title, initialIndex = 0, onClose }: LightboxProps) {
+  const hasSlider = !!(before && after);
+  const allItems = [
+    ...(hasSlider ? [{ type: "slider" as const }] : []),
+    ...images.map((img) => ({ type: "image" as const, ...img })),
+  ];
+
+  const [current, setCurrent] = useState(hasSlider ? 0 : initialIndex);
+
+  const prev = useCallback(() => setCurrent((c) => (c > 0 ? c - 1 : allItems.length - 1)), [allItems.length]);
+  const next = useCallback(() => setCurrent((c) => (c < allItems.length - 1 ? c + 1 : 0)), [allItems.length]);
+
   const handleKey = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") onClose();
-  }, [onClose]);
+    if (e.key === "ArrowLeft") prev();
+    if (e.key === "ArrowRight") next();
+  }, [onClose, prev, next]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKey);
@@ -22,6 +37,8 @@ export function PortfolioLightbox({ before, after, title, onClose }: LightboxPro
       document.body.style.overflow = "";
     };
   }, [handleKey]);
+
+  const item = allItems[current];
 
   return (
     <div
@@ -35,30 +52,57 @@ export function PortfolioLightbox({ before, after, title, onClose }: LightboxPro
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b-2 border-border">
           <span className="font-display text-lg tracking-wider truncate">{title}</span>
-          <button
-            onClick={onClose}
-            className="p-2 border border-border hover:border-orange hover:text-orange transition-colors flex-shrink-0"
-            aria-label="Закрыть"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {allItems.length > 1 && (
+              <span className="font-mono text-xs text-muted-foreground">{current + 1} / {allItems.length}</span>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 border border-border hover:border-orange hover:text-orange transition-colors flex-shrink-0"
+              aria-label="Закрыть"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Slider or single image */}
-        {before && after ? (
+        {/* Content */}
+        {item?.type === "slider" && before && after ? (
           <BeforeAfterSlider before={before} after={after} height="h-[60vh]" />
-        ) : (
-          <img
-            src={after || before || ""}
-            alt={title}
-            className="w-full max-h-[70vh] object-contain bg-muted"
-          />
+        ) : item?.type === "image" ? (
+          <div className="flex items-center justify-center bg-muted" style={{ height: "60vh" }}>
+            <img
+              src={(item as any).url}
+              alt={(item as any).label || title}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+        ) : null}
+
+        {/* Navigation arrows */}
+        {allItems.length > 1 && (
+          <>
+            <button
+              onClick={prev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-background/80 border border-border hover:border-orange hover:text-orange transition-colors z-10"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={next}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-background/80 border border-border hover:border-orange hover:text-orange transition-colors z-10"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
         )}
 
-        {/* Footer hint */}
+        {/* Footer */}
         <div className="px-5 py-3 border-t-2 border-border flex justify-between items-center">
-          <span className="font-mono text-xs text-muted-foreground">Перетащите ползунок для сравнения</span>
-          <span className="font-mono text-xs text-muted-foreground">ESC — закрыть</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {item?.type === "slider" ? "Перетащите ползунок для сравнения" : (item as any)?.label || ""}
+          </span>
+          <span className="font-mono text-xs text-muted-foreground">← → навигация · ESC — закрыть</span>
         </div>
       </div>
     </div>

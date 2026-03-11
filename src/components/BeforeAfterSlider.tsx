@@ -19,7 +19,6 @@ export function BeforeAfterSlider({ before, after, height = "h-72" }: BeforeAfte
     setPosition(pos);
   }, []);
 
-  // Mouse handlers
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;
@@ -33,7 +32,6 @@ export function BeforeAfterSlider({ before, after, height = "h-72" }: BeforeAfte
 
   const onMouseUp = useCallback(() => { isDragging.current = false; }, []);
 
-  // Touch handlers — passive: false to allow preventDefault on divider only
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     isDragging.current = true;
     updatePosition(e.touches[0].clientX);
@@ -41,7 +39,6 @@ export function BeforeAfterSlider({ before, after, height = "h-72" }: BeforeAfte
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isDragging.current) return;
-    // Only prevent scroll when actively dragging the slider
     e.stopPropagation();
     updatePosition(e.touches[0].clientX);
   }, [updatePosition]);
@@ -57,7 +54,7 @@ export function BeforeAfterSlider({ before, after, height = "h-72" }: BeforeAfte
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
     >
-      {/* After (base layer) */}
+      {/* After (base layer) — full size, object-cover */}
       <img
         src={after}
         alt="После"
@@ -65,16 +62,15 @@ export function BeforeAfterSlider({ before, after, height = "h-72" }: BeforeAfte
         draggable={false}
       />
 
-      {/* Before (clipped overlay) */}
+      {/* Before (clipped overlay) — clip-path instead of width trick */}
       <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ width: `${position}%` }}
+        className="absolute inset-0"
+        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       >
         <img
           src={before}
           alt="До"
-          className="absolute inset-0 h-full object-cover pointer-events-none"
-          style={{ width: containerRef.current ? `${containerRef.current.offsetWidth}px` : "100vw" }}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
           draggable={false}
         />
       </div>
@@ -84,7 +80,6 @@ export function BeforeAfterSlider({ before, after, height = "h-72" }: BeforeAfte
         className="absolute top-0 bottom-0 w-0.5 bg-orange z-10 pointer-events-none"
         style={{ left: `${position}%` }}
       >
-        {/* Handle */}
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-orange shadow-lg flex items-center justify-center z-20 pointer-events-auto cursor-ew-resize"
           onTouchStart={onTouchStart}
