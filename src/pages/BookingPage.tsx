@@ -170,7 +170,19 @@ export default function BookingPage() {
     ? services
     : services.filter((s) => s.category_id === selectedCategory || s.category === selectedCategory);
 
-  // Fallback: group by category text if no category_id system
+  const handleSelectCar = (carId: string) => {
+    setSelectedCarId(carId);
+    if (carId === "manual") {
+      setForm(prev => ({ ...prev, car_make: "", car_vin: "" }));
+      return;
+    }
+    const car = userCars.find(c => c.id === carId);
+    if (car) {
+      setForm(prev => ({ ...prev, car_make: car.brand_model, car_vin: car.vin || "" }));
+      if (errors.car_make) setErrors(p => { const e = { ...p }; delete e.car_make; return e; });
+    }
+  };
+
   const hasCategories = categories.length > 0;
 
   const totalMin = selectedServices.reduce((sum, s) => sum + s.price_from, 0);
