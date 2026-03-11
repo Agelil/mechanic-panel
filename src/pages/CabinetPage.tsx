@@ -393,7 +393,7 @@ export default function CabinetPage() {
               <div className="flex justify-center py-12">
                 <Loader2 className="w-6 h-6 text-orange animate-spin" />
               </div>
-            ) : !phone ? (
+            ) : !phone && tgUser ? (
               <PhoneLinkPrompt tgUser={tgUser} onLinked={(p) => { setPhone(p); loadClientData(tgUser); }} />
             ) : needsName ? (
               <NamePrompt phone={phone} currentName={clientName} onSaved={(name) => { setClientName(name); setNeedsName(false); }} />
