@@ -25,8 +25,13 @@ export function decrypt(value: string | null | undefined): string {
   try {
     const payload = value.slice(PREFIX.length);
     const bytes = CryptoJS.AES.decrypt(payload, key);
-    return bytes.toString(CryptoJS.enc.Utf8) || value;
-  } catch {
+    const result = bytes.toString(CryptoJS.enc.Utf8);
+    if (!result) {
+      console.warn("[decrypt] Failed to decrypt, key may be wrong. Key prefix:", key.slice(0, 8), "Value prefix:", value.slice(0, 30));
+    }
+    return result || value;
+  } catch (e) {
+    console.error("[decrypt] Exception:", e, "Key prefix:", key.slice(0, 8));
     return value;
   }
 }
