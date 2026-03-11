@@ -51,27 +51,30 @@ let fetchPromise: Promise<SiteSettings> | null = null;
 
 async function fetchSettings(): Promise<SiteSettings> {
   if (fetchPromise) return fetchPromise;
-  fetchPromise = supabase
-    .from("settings")
-    .select("key, value")
-    .then(({ data }): SiteSettings => {
-      const result = { ...DEFAULTS };
-      if (data) {
-        data.forEach(({ key, value }) => {
-          if (value === null || value === undefined) return;
-          const k = key as keyof SiteSettings;
-          if (typeof DEFAULTS[k] === "boolean") {
-            (result as Record<string, unknown>)[k] = value === "true" || value === "1";
-          } else {
-            (result as Record<string, unknown>)[k] = value;
-          }
-        });
-      }
-      cachedSettings = result;
-      fetchPromise = null;
-      return result;
-    });
-  return fetchPromise;
+  const promise = new Promise<SiteSettings>((resolve) => {
+    supabase
+      .from("settings")
+      .select("key, value")
+      .then(({ data }) => {
+        const result = { ...DEFAULTS };
+        if (data) {
+          data.forEach(({ key, value }) => {
+            if (value === null || value === undefined) return;
+            const k = key as keyof SiteSettings;
+            if (typeof DEFAULTS[k] === "boolean") {
+              (result as Record<string, unknown>)[k] = value === "true" || value === "1";
+            } else {
+              (result as Record<string, unknown>)[k] = value;
+            }
+          });
+        }
+        cachedSettings = result;
+        fetchPromise = null;
+        resolve(result);
+      });
+  });
+  fetchPromise = promise;
+  return promise;
 }
 
 export function useSiteSettings() {
