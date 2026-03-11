@@ -379,13 +379,42 @@ export default function BookingPage() {
                 <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2">
                   <Car className="w-3.5 h-3.5 text-orange" /> Марка и модель *
                 </label>
-                <input
-                  type="text"
-                  value={form.car_make}
-                  onChange={(e) => handleChange("car_make", e.target.value)}
-                  placeholder="Toyota Camry 2020"
-                  className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`}
-                />
+                {userCars.length > 0 ? (
+                  <>
+                    <Select value={selectedCarId} onValueChange={handleSelectCar}>
+                      <SelectTrigger className="w-full bg-surface border-2 border-border font-mono text-sm rounded-none h-12 focus:border-orange">
+                        <SelectValue placeholder="Выберите автомобиль" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userCars.map((car) => (
+                          <SelectItem key={car.id} value={car.id} className="font-mono text-sm">
+                            {car.brand_model}{car.vin ? ` (${car.vin})` : ""}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="manual" className="font-mono text-sm text-muted-foreground">
+                          Другой автомобиль...
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(selectedCarId === "manual" || !selectedCarId) && (
+                      <input
+                        type="text"
+                        value={form.car_make}
+                        onChange={(e) => handleChange("car_make", e.target.value)}
+                        placeholder="Toyota Camry 2020"
+                        className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors mt-2 ${errors.car_make ? "border-destructive" : "border-border"}`}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={form.car_make}
+                    onChange={(e) => handleChange("car_make", e.target.value)}
+                    placeholder="Toyota Camry 2020"
+                    className={`w-full bg-surface border-2 px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors ${errors.car_make ? "border-destructive" : "border-border"}`}
+                  />
+                )}
                 {errors.car_make && <p className="font-mono text-xs text-destructive mt-1">{errors.car_make}</p>}
               </div>
 
@@ -400,6 +429,7 @@ export default function BookingPage() {
                   placeholder="WAUZZZ8K9BA012345"
                   maxLength={17}
                   className="w-full bg-surface border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors uppercase"
+                  readOnly={!!selectedCarId && selectedCarId !== "manual"}
                 />
               </div>
 
