@@ -178,10 +178,18 @@ export default function CabinetPage() {
 
         const { data: client } = await supabase
           .from("clients")
-          .select("bonus_points")
+          .select("bonus_points, name")
           .eq("phone", clientPhone)
           .maybeSingle();
-        if (client) setBonusPoints(client.bonus_points || 0);
+        if (client) {
+          setBonusPoints(client.bonus_points || 0);
+          setClientName(client.name || null);
+          // Check if name has at least 2 words
+          const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
+          setNeedsName(!hasFullName);
+        } else {
+          setNeedsName(true);
+        }
       }
     } finally {
       setLoading(false);
