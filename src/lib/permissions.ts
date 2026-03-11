@@ -101,6 +101,8 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: "edit_client_bonuses",      label: "Редактирование бонусного счёта", description: "Корректировать баланс клиента" },
       { key: "view_telegram_users",      label: "Telegram-подписчики",            description: "Видеть список подписчиков бота" },
       { key: "send_broadcast",           label: "Рассылка в Telegram",            description: "Отправлять массовые сообщения подписчикам" },
+      { key: "edit_client_accounts",     label: "Редактирование кабинетов клиентов", description: "Менять данные клиентских аккаунтов (имя, телефон, авто)" },
+      { key: "delete_client_accounts",   label: "Удаление кабинетов клиентов",    description: "Полностью удалять клиентские кабинеты" },
     ],
   },
 

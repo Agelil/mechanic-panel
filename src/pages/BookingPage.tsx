@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, User, Car, MessageSquare, Calculator, ChevronRight, ShieldCheck, Gift, Bot, FolderOpen, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice } from "@/lib/utils";
 
@@ -40,6 +40,7 @@ export default function BookingPage() {
   const [consentGiven, setConsentGiven] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoFilled, setAutoFilled] = useState(false);
+  const [isGuest, setIsGuest] = useState(true);
 
   // Load services + categories
   useEffect(() => {
@@ -59,9 +60,55 @@ export default function BookingPage() {
     });
   }, []);
 
-  // Auto-fill from TG session's last appointment
+  // Auto-fill from TG session or Supabase auth session
   useEffect(() => {
     if (autoFilled) return;
+
+    // Try Supabase auth session first
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        setIsGuest(false);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        
+        // Find last appointment by email or user
+        const userEmail = session.user.email;
+        const userName = profile?.full_name || session.user.user_metadata?.full_name || "";
+        
+        // Get phone from users_registry
+        const { data: regData } = await supabase
+          .from("users_registry" as any)
+          .select("phone")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        const regPhone = (regData as any)?.phone || "";
+
+        // Last appointment
+        if (regPhone || userName) {
+          const q = supabase.from("appointments")
+            .select("name, phone, car_make, car_vin")
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (regPhone) q.eq("phone", regPhone);
+          const { data: lastAppt } = await q.maybeSingle();
+
+          setForm(prev => ({
+            ...prev,
+            name: lastAppt?.name || userName || prev.name,
+            phone: lastAppt?.phone || regPhone || prev.phone,
+            car_make: lastAppt?.car_make || prev.car_make,
+            car_vin: lastAppt?.car_vin || prev.car_vin,
+          }));
+        }
+        setAutoFilled(true);
+        return;
+      }
+    });
+
+    // Fallback: TG session
     const saved = localStorage.getItem("tg_cabinet_user");
     if (!saved) return;
 
@@ -69,8 +116,8 @@ export default function BookingPage() {
       const tgUser = JSON.parse(saved);
       const now = Math.floor(Date.now() / 1000);
       if (now - tgUser.auth_date >= 86400) return;
+      setIsGuest(false);
 
-      // Get phone from telegram_sessions
       supabase
         .from("telegram_sessions")
         .select("phone")
@@ -80,10 +127,8 @@ export default function BookingPage() {
           const clientPhone = session?.phone;
           if (!clientPhone) return;
 
-          // Pre-fill name from TG
           const tgName = `${tgUser.first_name || ""} ${tgUser.last_name || ""}`.trim();
 
-          // Find last appointment for this phone
           supabase
             .from("appointments")
             .select("name, phone, car_make, car_vin")
@@ -223,6 +268,49 @@ export default function BookingPage() {
           </p>
         </div>
       </section>
+
+      {/* Marketing block for guests */}
+      {isGuest && (
+        <section className="py-8 border-b-2 border-border">
+          <div className="container mx-auto px-4">
+            <div className="max-w-5xl mx-auto bg-orange/5 border-2 border-orange/30 p-6">
+              <h3 className="font-display text-2xl tracking-wider mb-4">
+                ЗАРЕГИСТРИРУЙТЕСЬ <span className="text-orange">И ПОЛУЧИТЕ БОЛЬШЕ</span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                <div className="flex items-start gap-3">
+                  <Gift className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-mono text-sm font-bold">Бонусы</p>
+                    <p className="font-mono text-xs text-muted-foreground">Возвращаем % с каждого ремонта на ваш счёт</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Bot className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-mono text-sm font-bold">Удобство</p>
+                    <p className="font-mono text-xs text-muted-foreground">Отслеживание статуса авто в Telegram</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <FolderOpen className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-mono text-sm font-bold">История</p>
+                    <p className="font-mono text-xs text-muted-foreground">Электронная сервисная книжка со всеми заказ-нарядами</p>
+                  </div>
+                </div>
+              </div>
+              <Link
+                to="/admin/login"
+                className="inline-flex items-center gap-2 bg-orange text-primary-foreground px-5 py-2.5 font-mono text-sm hover:bg-orange-bright transition-colors shadow-brutal-sm"
+              >
+                <UserPlus className="w-4 h-4" />
+                Зарегистрироваться
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="py-16">
         <div className="container mx-auto px-4">
