@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Clock, CheckCircle2, Wrench, XCircle, ChevronDown, Package, Bell, Upload, Trash2, Image, Eye } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { decryptPII } from "@/lib/encryption";
+import { decryptPII, decrypt } from "@/lib/encryption";
 import { usePermission } from "@/hooks/use-permission";
 import AppointmentFinancialBlock, { type WorkItem } from "@/components/admin/AppointmentFinancialBlock";
 
@@ -32,6 +32,7 @@ interface Appointment {
   status: string;
   client_notified: boolean;
   created_at: string;
+  client_id: string | null;
 }
 
 interface SupplyOrder {
@@ -92,47 +93,62 @@ export default function AdminAppointmentsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const upsertClient = async (appt: Appointment) => {
-    if (!appt.phone) return;
-    // Use encrypted phone as the unique key (match on encrypted value)
-    const { data: existing } = await supabase
-      .from("clients")
-      .select("id, car_history")
-      .eq("phone", appt.phone)
-      .maybeSingle();
+  const upsertClient = async (appt: Appointment): Promise<string | null> => {
+    if (!appt.phone) return null;
 
-    const carEntry = appt.car_make
-      ? { car_make: appt.car_make, service_type: appt.service_type, date: appt.created_at }
-      : null;
+    // First try to find client by existing client_id on this appointment
+    let clientId: string | null = appt.client_id || null;
 
-    if (existing) {
-      // Update name if missing, append car history
-      const history = Array.isArray(existing.car_history) ? existing.car_history : [];
-      const alreadyHas = history.some(
-        (h) => typeof h === "object" && h !== null && !Array.isArray(h) &&
-          (h as Record<string, unknown>).car_make === appt.car_make &&
-          (h as Record<string, unknown>).date === appt.created_at
-      );
-      const newHistory = carEntry && !alreadyHas ? [...history, carEntry] : history;
-      await supabase.from("clients").update({
-        name: appt.name || undefined,
-        car_history: newHistory,
-      }).eq("id", existing.id);
-    } else {
-      // Create new client
-      await supabase.from("clients").insert({
-        phone: appt.phone,
-        name: appt.name || null,
-        car_history: carEntry ? [carEntry] : [],
-        bonus_points: 0,
-      });
+    if (!clientId) {
+      // Decrypt the phone to do a reliable lookup via decrypted value search
+      // Since AES uses random IV we can't do eq() matching — instead we fetch
+      // all clients and match by decrypted phone client-side (small table).
+      const decPhone = decrypt(appt.phone);
+      const { data: allClients } = await supabase
+        .from("clients")
+        .select("id, phone, car_history, bonus_points")
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      const existing = allClients?.find((c) => decrypt(c.phone) === decPhone) || null;
+
+      if (existing) {
+        clientId = existing.id;
+      } else {
+        // Create new client
+        const { data: newClient } = await supabase
+          .from("clients")
+          .insert({
+            phone: appt.phone,
+            name: appt.name || null,
+            car_history: [],
+            bonus_points: 0,
+          })
+          .select("id")
+          .maybeSingle();
+        clientId = newClient?.id || null;
+      }
     }
+
+    if (!clientId) return null;
+
+    // Write client_id back to this appointment for future lookups
+    await supabase
+      .from("appointments")
+      .update({ client_id: clientId })
+      .eq("id", appt.id);
+
+    // Update local state too
+    setAppointments((prev) =>
+      prev.map((a) => a.id === appt.id ? { ...a, client_id: clientId } : a)
+    );
+
+    return clientId;
   };
 
-  const accrueBonus = async (appt: Appointment) => {
+  const accrueBonus = async (appt: Appointment, clientId?: string) => {
     if (!appt.total_price || appt.total_price <= 0) return;
     try {
-      // Fetch bonus_percentage from settings
       const { data: setting } = await supabase
         .from("settings")
         .select("value")
@@ -144,11 +160,14 @@ export default function AdminAppointmentsPage() {
       const bonusAmount = Math.floor(appt.total_price * pct / 100);
       if (bonusAmount <= 0) return;
 
-      // Find the client by phone
+      // Use clientId passed in (from upsertClient), or fall back to appointment's client_id
+      const resolvedClientId = clientId || appt.client_id;
+      if (!resolvedClientId) return;
+
       const { data: client } = await supabase
         .from("clients")
         .select("id, bonus_points")
-        .eq("phone", appt.phone)
+        .eq("id", resolvedClientId)
         .maybeSingle();
 
       if (!client) return;
@@ -178,13 +197,14 @@ export default function AdminAppointmentsPage() {
 
     // Auto-create/update client on terminal statuses
     if (["ready", "completed"].includes(status)) {
+      let resolvedClientId: string | null = null;
       try {
-        await upsertClient(updatedAppt);
+        resolvedClientId = await upsertClient(updatedAppt);
       } catch { /* non-critical */ }
       // Accrue bonuses only on "completed" (final status) to avoid double-accrual
       if (status === "completed") {
         try {
-          await accrueBonus(updatedAppt);
+          await accrueBonus(updatedAppt, resolvedClientId || undefined);
         } catch { /* non-critical */ }
       }
     }

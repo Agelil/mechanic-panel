@@ -57,6 +57,7 @@ export type Database = {
           acceptance_photos: Json | null
           car_make: string
           car_vin: string | null
+          client_id: string | null
           client_notified: boolean
           created_at: string
           id: string
@@ -79,6 +80,7 @@ export type Database = {
           acceptance_photos?: Json | null
           car_make: string
           car_vin?: string | null
+          client_id?: string | null
           client_notified?: boolean
           created_at?: string
           id?: string
@@ -101,6 +103,7 @@ export type Database = {
           acceptance_photos?: Json | null
           car_make?: string
           car_vin?: string | null
+          client_id?: string | null
           client_notified?: boolean
           created_at?: string
           id?: string
@@ -119,7 +122,15 @@ export type Database = {
           updated_at?: string
           work_items?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bonus_transactions: {
         Row: {
