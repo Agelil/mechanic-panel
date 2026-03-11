@@ -6,6 +6,7 @@ import {
   Globe, Search, Share2, Settings2, ChevronDown, ChevronRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { invalidateSiteSettingsCache } from "@/hooks/use-site-settings";
 
 // ── Types ──────────────────────────────────────────────────────────
 type Settings = Record<string, string>;
