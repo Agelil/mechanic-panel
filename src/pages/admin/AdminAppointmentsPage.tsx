@@ -93,41 +93,57 @@ export default function AdminAppointmentsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const upsertClient = async (appt: Appointment) => {
-    if (!appt.phone) return;
-    // Use encrypted phone as the unique key (match on encrypted value)
-    const { data: existing } = await supabase
-      .from("clients")
-      .select("id, car_history")
-      .eq("phone", appt.phone)
-      .maybeSingle();
+  const upsertClient = async (appt: Appointment): Promise<string | null> => {
+    if (!appt.phone) return null;
 
-    const carEntry = appt.car_make
-      ? { car_make: appt.car_make, service_type: appt.service_type, date: appt.created_at }
-      : null;
+    // First try to find client by existing client_id on this appointment
+    let clientId: string | null = appt.client_id || null;
 
-    if (existing) {
-      // Update name if missing, append car history
-      const history = Array.isArray(existing.car_history) ? existing.car_history : [];
-      const alreadyHas = history.some(
-        (h) => typeof h === "object" && h !== null && !Array.isArray(h) &&
-          (h as Record<string, unknown>).car_make === appt.car_make &&
-          (h as Record<string, unknown>).date === appt.created_at
-      );
-      const newHistory = carEntry && !alreadyHas ? [...history, carEntry] : history;
-      await supabase.from("clients").update({
-        name: appt.name || undefined,
-        car_history: newHistory,
-      }).eq("id", existing.id);
-    } else {
-      // Create new client
-      await supabase.from("clients").insert({
-        phone: appt.phone,
-        name: appt.name || null,
-        car_history: carEntry ? [carEntry] : [],
-        bonus_points: 0,
-      });
+    if (!clientId) {
+      // Decrypt the phone to do a reliable lookup via decrypted value search
+      // Since AES uses random IV we can't do eq() matching — instead we fetch
+      // all clients and match by decrypted phone client-side (small table).
+      const decPhone = decrypt(appt.phone);
+      const { data: allClients } = await supabase
+        .from("clients")
+        .select("id, car_history, bonus_points")
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      const existing = allClients?.find((c) => decrypt(c.phone) === decPhone) || null;
+
+      if (existing) {
+        clientId = existing.id;
+      } else {
+        // Create new client
+        const { data: newClient } = await supabase
+          .from("clients")
+          .insert({
+            phone: appt.phone,
+            name: appt.name || null,
+            car_history: [],
+            bonus_points: 0,
+          })
+          .select("id")
+          .maybeSingle();
+        clientId = newClient?.id || null;
+      }
     }
+
+    if (!clientId) return null;
+
+    // Write client_id back to this appointment for future lookups
+    await supabase
+      .from("appointments")
+      .update({ client_id: clientId })
+      .eq("id", appt.id);
+
+    // Update local state too
+    setAppointments((prev) =>
+      prev.map((a) => a.id === appt.id ? { ...a, client_id: clientId } : a)
+    );
+
+    return clientId;
   };
 
   const accrueBonus = async (appt: Appointment) => {
