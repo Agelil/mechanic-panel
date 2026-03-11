@@ -284,6 +284,7 @@ export default function AdminClientsPage() {
             </div>
 
             {/* Bonus balance */}
+            {canViewBonuses ? (
             <div className="bg-surface border-2 border-orange/30 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Star className="w-5 h-5 text-orange" />
