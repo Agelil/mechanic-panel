@@ -111,12 +111,22 @@ export default function CabinetPage() {
           .select("phone")
           .eq("user_id", session.user.id)
           .maybeSingle();
-        const regPhone = (reg as any)?.phone;
-        if (regPhone) {
-          setPhone(regPhone);
-          loadClientDataByPhone(regPhone, fullName);
+        let foundPhone = (reg as any)?.phone;
+
+        // Fallback: check clients table by name match
+        if (!foundPhone && fullName) {
+          const { data: clientByName } = await supabase
+            .from("clients")
+            .select("phone")
+            .eq("name", fullName.trim())
+            .maybeSingle();
+          if (clientByName?.phone) foundPhone = clientByName.phone;
+        }
+
+        if (foundPhone) {
+          setPhone(foundPhone);
+          loadClientDataByPhone(foundPhone, fullName);
         } else {
-          // Try to find by email in clients
           setLoading(false);
           setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
         }
@@ -383,7 +393,7 @@ export default function CabinetPage() {
               <div className="flex justify-center py-12">
                 <Loader2 className="w-6 h-6 text-orange animate-spin" />
               </div>
-            ) : !phone ? (
+            ) : !phone && tgUser ? (
               <PhoneLinkPrompt tgUser={tgUser} onLinked={(p) => { setPhone(p); loadClientData(tgUser); }} />
             ) : needsName ? (
               <NamePrompt phone={phone} currentName={clientName} onSaved={(name) => { setClientName(name); setNeedsName(false); }} />
