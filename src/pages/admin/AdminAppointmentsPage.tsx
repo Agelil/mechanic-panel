@@ -63,6 +63,7 @@ const NOTIFY_STATUSES = ["parts_arrived", "ready", "completed"];
 export default function AdminAppointmentsPage() {
   const { toast } = useToast();
   const canViewPrice = usePermission("view_appointment_price");
+  const canViewFinances = usePermission("view_finances");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [supplyOrders, setSupplyOrders] = useState<SupplyOrder[]>([]);
