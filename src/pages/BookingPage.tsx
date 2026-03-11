@@ -28,6 +28,12 @@ interface ServiceOption {
   category_id: string | null;
 }
 
+interface CustomerCar {
+  id: string;
+  brand_model: string;
+  vin: string | null;
+}
+
 export default function BookingPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -41,6 +47,8 @@ export default function BookingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoFilled, setAutoFilled] = useState(false);
   const [isGuest, setIsGuest] = useState(true);
+  const [userCars, setUserCars] = useState<CustomerCar[]>([]);
+  const [selectedCarId, setSelectedCarId] = useState<string>("");
 
   // Load services + categories
   useEffect(() => {
