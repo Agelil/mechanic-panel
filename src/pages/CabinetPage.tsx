@@ -710,20 +710,38 @@ export default function CabinetPage() {
                           <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-2">Файлы и акты</p>
                           <div className="space-y-2">
                             {currentAppt.documents.map((doc) => (
-                              <a
+                              <button
                                 key={doc.id}
-                                href={doc.file_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                download={doc.file_name}
-                                className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright transition-colors border border-border hover:border-orange px-3 py-2"
+                                onClick={async () => {
+                                  if (doc.doc_type === "work_order" || doc.doc_type === "acceptance_act" || doc.doc_type === "completion_act") {
+                                    try {
+                                      const { data, error } = await supabase.functions.invoke("generate-document", {
+                                        body: { appointment_id: currentAppt.id, doc_type: doc.doc_type },
+                                      });
+                                      if (error) throw error;
+                                      if (data?.html) {
+                                        const blob = new Blob([data.html], { type: "text/html;charset=utf-8" });
+                                        const url = URL.createObjectURL(blob);
+                                        const printWin = window.open(url, "_blank");
+                                        if (printWin) {
+                                          printWin.onload = () => setTimeout(() => printWin.print(), 400);
+                                        }
+                                      }
+                                    } catch {
+                                      window.open(doc.file_url, "_blank");
+                                    }
+                                  } else {
+                                    window.open(doc.file_url, "_blank");
+                                  }
+                                }}
+                                className="w-full flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright transition-colors border border-border hover:border-orange px-3 py-2"
                               >
                                 <Download className="w-3.5 h-3.5 flex-shrink-0" />
                                 <span className="truncate">{DOC_TYPE_LABELS[doc.doc_type] || doc.file_name}</span>
                                 <span className="text-muted-foreground ml-auto flex-shrink-0">
                                   {new Date(doc.created_at).toLocaleDateString("ru-RU")}
                                 </span>
-                              </a>
+                              </button>
                             ))}
                           </div>
                         </div>
@@ -800,20 +818,38 @@ export default function CabinetPage() {
                                   <div>
                                     <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-1">Файлы и акты</p>
                                     {appt.documents.map((doc) => (
-                                      <a
+                                      <button
                                         key={doc.id}
-                                        href={doc.file_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        download={doc.file_name}
-                                        className="flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright border border-border hover:border-orange px-3 py-2 mb-1"
+                                        onClick={async () => {
+                                          if (doc.doc_type === "work_order" || doc.doc_type === "acceptance_act" || doc.doc_type === "completion_act") {
+                                            try {
+                                              const { data, error } = await supabase.functions.invoke("generate-document", {
+                                                body: { appointment_id: appt.id, doc_type: doc.doc_type },
+                                              });
+                                              if (error) throw error;
+                                              if (data?.html) {
+                                                const blob = new Blob([data.html], { type: "text/html;charset=utf-8" });
+                                                const url = URL.createObjectURL(blob);
+                                                const printWin = window.open(url, "_blank");
+                                                if (printWin) {
+                                                  printWin.onload = () => setTimeout(() => printWin.print(), 400);
+                                                }
+                                              }
+                                            } catch {
+                                              window.open(doc.file_url, "_blank");
+                                            }
+                                          } else {
+                                            window.open(doc.file_url, "_blank");
+                                          }
+                                        }}
+                                        className="w-full flex items-center gap-2 font-mono text-xs text-orange hover:text-orange-bright border border-border hover:border-orange px-3 py-2 mb-1"
                                       >
                                         <Download className="w-3.5 h-3.5 flex-shrink-0" />
                                         <span className="truncate">{DOC_TYPE_LABELS[doc.doc_type] || doc.file_name}</span>
                                         <span className="text-muted-foreground ml-auto flex-shrink-0">
                                           {new Date(doc.created_at).toLocaleDateString("ru-RU")}
                                         </span>
-                                      </a>
+                                      </button>
                                     ))}
                                   </div>
                                 )}
