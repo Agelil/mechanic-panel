@@ -67,6 +67,9 @@ export default function CabinetPage() {
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [bonusPoints, setBonusPoints] = useState<number>(0);
+  const [maxBonusPct, setMaxBonusPct] = useState<number>(30);
+  const [useBonuses, setUseBonuses] = useState(false);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
