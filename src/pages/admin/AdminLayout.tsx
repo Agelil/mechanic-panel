@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Wrench, Images, ClipboardList,
   Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
-  ShieldCheck, ServerCog, ShoppingCart, UsersRound, WifiOff
+  ShieldCheck, ServerCog, ShoppingCart, UsersRound, WifiOff, BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
