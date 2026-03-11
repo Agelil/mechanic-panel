@@ -379,6 +379,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const isOwner = state.user?.email === OWNER_EMAIL;
+
   return (
     <AuthContext.Provider value={{
       status:         state.status,
@@ -387,6 +389,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role:           state.role,
       loading:        state.status === "loading",
       hasLocalSession: hasLocalStorageSession(),
+      isOwner,
       hasPermission,
       isAtLeast,
       refreshRole,
