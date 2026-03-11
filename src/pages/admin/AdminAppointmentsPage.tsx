@@ -334,11 +334,65 @@ export default function AdminAppointmentsPage() {
           <h1 className="font-display text-4xl tracking-wider">ЗАЯВКИ</h1>
           <p className="font-mono text-sm text-muted-foreground">Входящие заявки с расширенным управлением</p>
         </div>
-        <div className="font-display text-4xl text-orange">{counts.new || 0}
-          <span className="font-mono text-xs text-muted-foreground ml-1">новых</span>
+        <div className="flex items-center gap-4">
+          {/* View mode toggle */}
+          <div className="flex border-2 border-border">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 px-3 py-2 font-mono text-xs transition-colors ${viewMode === "list" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+            >
+              <List className="w-3.5 h-3.5" />
+              Список
+            </button>
+            <button
+              onClick={() => setViewMode("calendar")}
+              className={`flex items-center gap-1.5 px-3 py-2 font-mono text-xs transition-colors ${viewMode === "calendar" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Календарь
+            </button>
+          </div>
+          <div className="font-display text-4xl text-orange">{counts.new || 0}
+            <span className="font-mono text-xs text-muted-foreground ml-1">новых</span>
+          </div>
         </div>
       </div>
 
+      {/* Financial widgets — only for users with view_finances permission */}
+      {canViewFinances && (
+        <FinancialWidgets
+          appointments={appointments.map((a) => ({
+            ...a,
+            is_paid: (a as any).is_paid ?? false,
+          }))}
+        />
+      )}
+
+      {viewMode === "calendar" ? (
+        /* ── Calendar View ── */
+        loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-orange animate-spin" /></div>
+        ) : (
+          <AppointmentCalendar
+            appointments={appointments.map((a) => ({
+              id: a.id,
+              name: a.name,
+              car_make: a.car_make,
+              status: a.status,
+              scheduled_at: (a as any).scheduled_at || null,
+              created_at: a.created_at,
+              total_price: a.total_price,
+            }))}
+            onSelect={(id) => {
+              setViewMode("list");
+              setExpanded(id);
+              setStatusFilter("all");
+            }}
+          />
+        )
+      ) : (
+      /* ── List View ── */
+      <>
       {/* Filters */}
       <div className="flex flex-wrap gap-px bg-border mb-6">
         <button onClick={() => setStatusFilter("active")}
