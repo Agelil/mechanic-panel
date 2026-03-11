@@ -209,6 +209,9 @@ export default function BookingPage() {
 
   // removed inline success screen — now redirects to /booking-success
 
+  // Check if user is logged in via TG
+  const isGuest = !localStorage.getItem("tg_cabinet_user");
+
   return (
     <div className="min-h-screen pt-16">
       <section className="relative bg-surface border-b-2 border-border py-16 bg-grid">
@@ -223,6 +226,49 @@ export default function BookingPage() {
           </p>
         </div>
       </section>
+
+      {/* Guest upsell banner */}
+      {isGuest && (
+        <section className="py-0">
+          <div className="container mx-auto px-4 max-w-5xl">
+            <div className="bg-surface border-2 border-orange/30 p-6 mt-8 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-orange" />
+              <h3 className="font-display text-2xl tracking-wider mb-4 pl-4">
+                ЗАРЕГИСТРИРУЙТЕСЬ, ЧТОБЫ ПОЛУЧИТЬ <span className="text-orange">МАКСИМУМ</span> ОТ СЕРВИСА
+              </h3>
+              <div className="space-y-3 pl-4 mb-5">
+                <div className="flex items-start gap-3">
+                  <span className="text-lg flex-shrink-0">🎁</span>
+                  <div>
+                    <p className="font-mono text-sm font-bold">Бонусы с каждой оплаты</p>
+                    <p className="font-mono text-xs text-muted-foreground">Копите баллы и оплачивайте ими ремонт.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-lg flex-shrink-0">📱</span>
+                  <div>
+                    <p className="font-mono text-sm font-bold">Telegram-уведомления</p>
+                    <p className="font-mono text-xs text-muted-foreground">Следите за статусом ремонта в реальном времени.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-lg flex-shrink-0">📜</span>
+                  <div>
+                    <p className="font-mono text-sm font-bold">История обслуживания</p>
+                    <p className="font-mono text-xs text-muted-foreground">Все наряды-допуски и запчасти всегда под рукой.</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate("/cabinet")}
+                className="ml-4 bg-orange text-primary-foreground px-6 py-3 font-display text-lg tracking-widest hover:bg-orange-bright transition-colors"
+              >
+                СОЗДАТЬ ЛИЧНЫЙ КАБИНЕТ
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="py-16">
         <div className="container mx-auto px-4">
