@@ -59,6 +59,8 @@ const STATUS_LABELS: Record<string, string> = {
 export default function AdminClientsPage() {
   const { toast } = useToast();
   const canEditBonuses = usePermission("edit_bonuses");
+  const canViewBonuses = usePermission("view_client_bonuses");
+  const canViewHistory = usePermission("view_service_history");
 
   const [clients, setClients] = useState<Client[]>([]);
   const [tgUsers, setTgUsers] = useState<TelegramUser[]>([]);
@@ -282,6 +284,7 @@ export default function AdminClientsPage() {
             </div>
 
             {/* Bonus balance */}
+            {canViewBonuses ? (
             <div className="bg-surface border-2 border-orange/30 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Star className="w-5 h-5 text-orange" />
@@ -331,9 +334,10 @@ export default function AdminClientsPage() {
                 </div>
               )}
             </div>
+            ) : null}
 
             {/* Bonus transaction history */}
-            {bonusHistory.length > 0 && (
+            {canViewBonuses && bonusHistory.length > 0 && (
               <div className="bg-surface border-2 border-border p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Gift className="w-4 h-4 text-orange" />

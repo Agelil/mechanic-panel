@@ -63,7 +63,7 @@ export default function AdminAppointmentsPage() {
   const [supplyOrders, setSupplyOrders] = useState<SupplyOrder[]>([]);
   const [catalogServices, setCatalogServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -268,12 +268,18 @@ export default function AdminAppointmentsPage() {
     );
   };
 
-  const filtered = useMemo(
-    () => statusFilter === "all" ? appointments : appointments.filter((a) => a.status === statusFilter),
-    [appointments, statusFilter]
-  );
+  const TERMINAL_STATUSES = ["completed", "cancelled"];
 
-  const counts: Record<string, number> = { all: appointments.length };
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return appointments;
+    if (statusFilter === "active") return appointments.filter((a) => !TERMINAL_STATUSES.includes(a.status));
+    return appointments.filter((a) => a.status === statusFilter);
+  }, [appointments, statusFilter]);
+
+  const counts: Record<string, number> = {
+    all: appointments.length,
+    active: appointments.filter((a) => !TERMINAL_STATUSES.includes(a.status)).length,
+  };
   Object.keys(STATUS_CONFIG).forEach((s) => {
     counts[s] = appointments.filter((a) => a.status === s).length;
   });
@@ -292,6 +298,10 @@ export default function AdminAppointmentsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-px bg-border mb-6">
+        <button onClick={() => setStatusFilter("active")}
+          className={`px-4 py-2 font-mono text-xs uppercase tracking-widest transition-colors ${statusFilter === "active" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground hover:bg-surface"}`}>
+          Активные ({counts.active})
+        </button>
         <button onClick={() => setStatusFilter("all")}
           className={`px-4 py-2 font-mono text-xs uppercase tracking-widest transition-colors ${statusFilter === "all" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground hover:bg-surface"}`}>
           Все ({counts.all})

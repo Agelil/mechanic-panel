@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Save, Loader2, CheckCircle2, Bot, Hash, Bell, Link as LinkIcon,
   Copy, Sheet, ToggleLeft, ToggleRight, Users, Phone, MapPin, Clock,
-  Globe, Search, Share2, Settings2, ChevronDown, ChevronRight, Star
+  Globe, Search, Share2, Settings2, ChevronDown, ChevronRight, Star, Lock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateSiteSettingsCache } from "@/hooks/use-site-settings";
+import { usePermission } from "@/hooks/use-permission";
 
 // ── Types ──────────────────────────────────────────────────────────
 type Settings = Record<string, string>;
@@ -129,6 +130,10 @@ const SECTIONS: SettingSection[] = [
 // ── Component ─────────────────────────────────────────────────────
 export default function AdminSettingsPage() {
   const { toast } = useToast();
+  const canEdit = usePermission("edit_site_config");
+  const canManageBonusRate = usePermission("manage_bonus_rate");
+  const canEditTelegram = usePermission("edit_telegram_settings");
+  const canEditIntegrations = usePermission("edit_integrations");
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -206,17 +211,28 @@ export default function AdminSettingsPage() {
           <h1 className="font-display text-4xl tracking-wider">НАСТРОЙКИ САЙТА</h1>
           <p className="font-mono text-sm text-muted-foreground">Конфигурация, контакты, модули и интеграции</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || !dirty}
-          className="flex items-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors disabled:opacity-40 shadow-brutal"
-        >
-          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-          {saving ? "Сохраняем..." : "Сохранить"}
-        </button>
+        {canEdit && (
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="flex items-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors disabled:opacity-40 shadow-brutal"
+          >
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+            {saving ? "Сохраняем..." : "Сохранить"}
+          </button>
+        )}
       </div>
 
-      {dirty && (
+      {!canEdit && (
+        <div className="mb-6 flex items-center gap-2 bg-surface border-2 border-border px-4 py-3">
+          <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span className="font-mono text-xs text-muted-foreground">
+            У вашей группы нет права <code className="text-orange">edit_site_config</code> — настройки доступны только для чтения.
+          </span>
+        </div>
+      )}
+
+      {canEdit && dirty && (
         <div className="mb-6 flex items-center gap-2 bg-orange/10 border border-orange/30 px-4 py-2">
           <Save className="w-4 h-4 text-orange" />
           <span className="font-mono text-xs text-orange">Есть несохранённые изменения</span>
@@ -225,6 +241,13 @@ export default function AdminSettingsPage() {
 
       <div className="max-w-2xl space-y-3">
         {SECTIONS.map((section) => {
+          // Restrict individual sections by permission
+          const sectionReadOnly =
+            !canEdit ||
+            (section.id === "telegram" && !canEditTelegram) ||
+            (section.id === "integrations" && !canEditIntegrations) ||
+            (section.id === "bonuses" && !canManageBonusRate);
+
           const isOpen = openSections.has(section.id);
           return (
             <div key={section.id} className="bg-surface border-2 border-border overflow-hidden">
@@ -238,7 +261,10 @@ export default function AdminSettingsPage() {
                   {section.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-display text-xl tracking-wider">{section.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display text-xl tracking-wider">{section.title}</h3>
+                    {sectionReadOnly && <Lock className="w-3 h-3 text-muted-foreground" />}
+                  </div>
                   <p className="font-mono text-xs text-muted-foreground">{section.subtitle}</p>
                 </div>
                 {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
@@ -252,8 +278,9 @@ export default function AdminSettingsPage() {
                       key={field.key}
                       field={field}
                       value={settings[field.key] ?? ""}
-                      onChange={(v) => set(field.key, v)}
-                      onToggle={() => toggle(field.key)}
+                      onChange={(v) => { if (!sectionReadOnly) set(field.key, v); }}
+                      onToggle={() => { if (!sectionReadOnly) toggle(field.key); }}
+                      readOnly={sectionReadOnly}
                     />
                   ))}
 
@@ -313,20 +340,24 @@ function SettingField({
   value,
   onChange,
   onToggle,
+  readOnly = false,
 }: {
   field: SettingField;
   value: string;
   onChange: (v: string) => void;
   onToggle: () => void;
+  readOnly?: boolean;
 }) {
-  const inputCls = "w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors";
+  const inputCls = `w-full bg-background border-2 px-4 py-3 font-mono text-sm focus:outline-none transition-colors ${
+    readOnly ? "border-border/50 text-muted-foreground cursor-not-allowed" : "border-border focus:border-orange"
+  }`;
 
   if (field.type === "toggle") {
     const isOn = value === "true";
     return (
       <div
-        onClick={onToggle}
-        className="flex items-center justify-between p-4 border-2 border-border cursor-pointer hover:border-orange/30 transition-colors select-none"
+        onClick={readOnly ? undefined : onToggle}
+        className={`flex items-center justify-between p-4 border-2 border-border transition-colors select-none ${readOnly ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-orange/30"}`}
       >
         <div>
           <span className="font-mono text-sm font-bold block">{field.label}</span>
@@ -346,7 +377,7 @@ function SettingField({
     return (
       <div>
         <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">{field.label}</label>
-        <div className="space-y-2">
+        <div className={`space-y-2 ${readOnly ? "opacity-60 pointer-events-none" : ""}`}>
           {field.options.map((opt) => (
             <label
               key={opt.value}
@@ -358,6 +389,7 @@ function SettingField({
                 value={opt.value}
                 checked={value === opt.value}
                 onChange={() => onChange(opt.value)}
+                disabled={readOnly}
                 className="mt-0.5 accent-orange flex-shrink-0"
               />
               <div>
@@ -380,6 +412,7 @@ function SettingField({
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
           rows={3}
+          readOnly={readOnly}
           className={inputCls + " resize-none"}
         />
         {field.hint && <p className="font-mono text-xs text-muted-foreground mt-1">{field.hint}</p>}
@@ -395,9 +428,11 @@ function SettingField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder}
+        readOnly={readOnly}
         className={inputCls}
       />
       {field.hint && <p className="font-mono text-xs text-muted-foreground mt-1">{field.hint}</p>}
     </div>
   );
 }
+
