@@ -257,7 +257,39 @@ export default function CabinetPage() {
     setLinkingTg(false);
   };
 
-  const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
+  // Phone editing
+  const handleSavePhone = async () => {
+    if (!emailUser || !phoneInput.trim()) return;
+    setSavingPhone(true);
+    const newPhone = phoneInput.trim();
+    await supabase.from("users_registry" as any).update({ phone: newPhone } as any).eq("user_id", emailUser.id);
+    await supabase.from("clients").upsert({ phone: newPhone, name: clientName || emailUser.fullName }, { onConflict: "phone" });
+    setPhone(newPhone);
+    setEditingPhone(false);
+    setSavingPhone(false);
+  };
+
+  // Car management
+  const handleAddCar = async () => {
+    if (!emailUser || !newCarBrand.trim()) return;
+    setAddingCar(true);
+    const { data } = await supabase.from("customer_cars" as any).insert({
+      user_id: emailUser.id,
+      brand_model: newCarBrand.trim(),
+      vin: newCarVin.trim().toUpperCase() || null,
+    } as any).select().single();
+    if (data) setCars(prev => [data as any as CustomerCar, ...prev]);
+    setNewCarBrand("");
+    setNewCarVin("");
+    setShowAddCar(false);
+    setAddingCar(false);
+  };
+
+  const handleDeleteCar = async (carId: string) => {
+    await supabase.from("customer_cars" as any).delete().eq("id", carId);
+    setCars(prev => prev.filter(c => c.id !== carId));
+  };
+
   const historyOrders = appointments.filter((a) => TERMINAL.includes(a.status));
   const currentAppt = activeOrders[0] || null;
 
