@@ -75,12 +75,25 @@ function useConnectionStatus() {
 
 export default function AdminLayout() {
   const location = useLocation();
-  const { session, role, loading, hasPermission, isOwner, signOut } = useAuth();
+  const { session, role, loading, hasPermission, isOwner, signOut, user } = useAuth();
   const isOffline = useConnectionStatus();
 
   useAuthGuard();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [position, setPosition] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("users_registry" as any)
+      .select("position")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if ((data as any)?.position) setPosition((data as any).position);
+      });
+  }, [user?.id]);
 
   const isActive = (item: typeof allNavItems[0]) => {
     if (item.exact) return location.pathname === item.href;
@@ -126,7 +139,12 @@ export default function AdminLayout() {
             <p className="font-display text-sm tracking-widest">
               СЕРВИС<span className="text-orange">-</span>ТОЧКА
             </p>
-            <p className="font-mono text-xs text-muted-foreground">Admin Panel</p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {position === "Мастер" ? "Панель мастера"
+                : position === "Менеджер" ? "Панель менеджера"
+                : position === "Снабженец" ? "Панель снабжения"
+                : "Admin Panel"}
+            </p>
           </div>
         </div>
 
