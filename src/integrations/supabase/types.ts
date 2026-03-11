@@ -61,6 +61,7 @@ export type Database = {
           client_notified: boolean
           created_at: string
           id: string
+          is_paid: boolean
           license_plate: string | null
           message: string | null
           mileage: number | null
@@ -68,6 +69,7 @@ export type Database = {
           parts_cost: number
           phone: string
           photos: Json | null
+          scheduled_at: string | null
           service_type: string
           services: Json | null
           services_cost: number
@@ -84,6 +86,7 @@ export type Database = {
           client_notified?: boolean
           created_at?: string
           id?: string
+          is_paid?: boolean
           license_plate?: string | null
           message?: string | null
           mileage?: number | null
@@ -91,6 +94,7 @@ export type Database = {
           parts_cost?: number
           phone: string
           photos?: Json | null
+          scheduled_at?: string | null
           service_type: string
           services?: Json | null
           services_cost?: number
@@ -107,6 +111,7 @@ export type Database = {
           client_notified?: boolean
           created_at?: string
           id?: string
+          is_paid?: boolean
           license_plate?: string | null
           message?: string | null
           mileage?: number | null
@@ -114,6 +119,7 @@ export type Database = {
           parts_cost?: number
           phone?: string
           photos?: Json | null
+          scheduled_at?: string | null
           service_type?: string
           services?: Json | null
           services_cost?: number

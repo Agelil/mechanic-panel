@@ -65,6 +65,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: "edit_order_prices",        label: "Редактирование стоимости заказа",description: "Изменять суммы работ и запчастей" },
       { key: "view_revenue",             label: "Просмотр выручки",               description: "Видеть итоговую финансовую статистику сервиса" },
       { key: "view_total_revenue",       label: "Просмотр общей выручки",         description: "Видеть суммарную прибыль по всем заказам" },
+      { key: "view_finances",            label: "Финансовая аналитика",           description: "Видеть виджеты выручки, среднего чека и дебиторки" },
       { key: "view_prices",              label: "Просмотр прайса",                description: "Видеть цены в услугах и каталоге" },
       { key: "edit_service_price",       label: "Редактирование цен услуг",       description: "Изменять стоимость позиций прайс-листа" },
       { key: "edit_parts_cost",          label: "Редактирование цен запчастей",   description: "Менять закупочную и клиентскую цену запчасти" },

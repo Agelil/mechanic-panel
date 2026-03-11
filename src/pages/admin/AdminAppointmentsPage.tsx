@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Clock, CheckCircle2, Wrench, XCircle, ChevronDown, Package, Bell, Upload, Trash2, Image, Eye } from "lucide-react";
+import { Loader2, Clock, CheckCircle2, Wrench, XCircle, ChevronDown, Package, Bell, Upload, Trash2, Image, Eye, Calendar, List } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { decryptPII, decrypt } from "@/lib/encryption";
 import { usePermission } from "@/hooks/use-permission";
 import AppointmentFinancialBlock, { type WorkItem } from "@/components/admin/AppointmentFinancialBlock";
 import OrderDocumentsBlock from "@/components/admin/OrderDocumentsBlock";
+import AppointmentCalendar from "@/components/admin/AppointmentCalendar";
+import FinancialWidgets from "@/components/admin/FinancialWidgets";
 
 interface ServiceItem {
   id: string;
@@ -34,6 +36,8 @@ interface Appointment {
   client_notified: boolean;
   created_at: string;
   client_id: string | null;
+  scheduled_at: string | null;
+  is_paid: boolean;
 }
 
 interface SupplyOrder {
@@ -59,6 +63,7 @@ const NOTIFY_STATUSES = ["parts_arrived", "ready", "completed"];
 export default function AdminAppointmentsPage() {
   const { toast } = useToast();
   const canViewPrice = usePermission("view_appointment_price");
+  const canViewFinances = usePermission("view_finances");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [supplyOrders, setSupplyOrders] = useState<SupplyOrder[]>([]);
@@ -66,6 +71,7 @@ export default function AdminAppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("active");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
@@ -328,11 +334,65 @@ export default function AdminAppointmentsPage() {
           <h1 className="font-display text-4xl tracking-wider">ЗАЯВКИ</h1>
           <p className="font-mono text-sm text-muted-foreground">Входящие заявки с расширенным управлением</p>
         </div>
-        <div className="font-display text-4xl text-orange">{counts.new || 0}
-          <span className="font-mono text-xs text-muted-foreground ml-1">новых</span>
+        <div className="flex items-center gap-4">
+          {/* View mode toggle */}
+          <div className="flex border-2 border-border">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 px-3 py-2 font-mono text-xs transition-colors ${viewMode === "list" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+            >
+              <List className="w-3.5 h-3.5" />
+              Список
+            </button>
+            <button
+              onClick={() => setViewMode("calendar")}
+              className={`flex items-center gap-1.5 px-3 py-2 font-mono text-xs transition-colors ${viewMode === "calendar" ? "bg-orange text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Календарь
+            </button>
+          </div>
+          <div className="font-display text-4xl text-orange">{counts.new || 0}
+            <span className="font-mono text-xs text-muted-foreground ml-1">новых</span>
+          </div>
         </div>
       </div>
 
+      {/* Financial widgets — only for users with view_finances permission */}
+      {canViewFinances && (
+        <FinancialWidgets
+          appointments={appointments.map((a) => ({
+            ...a,
+            is_paid: (a as any).is_paid ?? false,
+          }))}
+        />
+      )}
+
+      {viewMode === "calendar" ? (
+        /* ── Calendar View ── */
+        loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-orange animate-spin" /></div>
+        ) : (
+          <AppointmentCalendar
+            appointments={appointments.map((a) => ({
+              id: a.id,
+              name: a.name,
+              car_make: a.car_make,
+              status: a.status,
+              scheduled_at: (a as any).scheduled_at || null,
+              created_at: a.created_at,
+              total_price: a.total_price,
+            }))}
+            onSelect={(id) => {
+              setViewMode("list");
+              setExpanded(id);
+              setStatusFilter("all");
+            }}
+          />
+        )
+      ) : (
+      /* ── List View ── */
+      <>
       {/* Filters */}
       <div className="flex flex-wrap gap-px bg-border mb-6">
         <button onClick={() => setStatusFilter("active")}
@@ -538,6 +598,8 @@ export default function AdminAppointmentsPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );

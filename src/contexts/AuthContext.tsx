@@ -40,7 +40,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "view_system", "view_audit_log",
     "view_groups", "edit_groups", "delete_groups",
     "view_permissions", "edit_permissions",
-    "view_revenue", "view_prices",
+    "view_revenue", "view_prices", "view_finances",
     "manage_wiki",
   ],
   manager: [
@@ -53,7 +53,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "view_promotions", "edit_promotions",
     "view_clients", "edit_clients", "view_client_history",
     "view_reviews", "publish_reviews",
-    "view_users", "view_settings", "view_revenue", "view_prices",
+    "view_users", "view_settings", "view_revenue", "view_prices", "view_finances",
   ],
   master: ["view_dashboard", "view_appointments", "edit_appointment_status", "view_supply", "create_supply_order"],
 };
