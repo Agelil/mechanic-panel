@@ -239,37 +239,51 @@ export default function CabinetPage() {
         ) : (
           /* Authenticated cabinet */
           <div className="max-w-3xl mx-auto space-y-8">
-            {/* Profile */}
-            <div className="bg-surface border-2 border-border p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {tgUser.photo_url ? (
-                  <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
-                ) : (
-                  <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
-                    <User className="w-6 h-6 text-orange" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-display text-2xl tracking-wider">
-                    {tgUser.first_name} {tgUser.last_name || ""}
-                  </p>
-                  {tgUser.username && (
-                    <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
+            {/* Profile + Bonus */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2 bg-surface border-2 border-border p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {tgUser.photo_url ? (
+                    <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
+                  ) : (
+                    <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
+                      <User className="w-6 h-6 text-orange" />
+                    </div>
                   )}
-                  {phone && (
-                    <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
-                      <Phone className="w-3 h-3" /> {phone}
+                  <div>
+                    <p className="font-display text-2xl tracking-wider">
+                      {tgUser.first_name} {tgUser.last_name || ""}
                     </p>
-                  )}
+                    {tgUser.username && (
+                      <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
+                    )}
+                    {phone && (
+                      <p className="font-mono text-xs text-orange flex items-center gap-1 mt-1">
+                        <Phone className="w-3 h-3" /> {phone}
+                      </p>
+                    )}
+                  </div>
                 </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 font-mono text-xs border border-border px-3 py-2 hover:border-destructive hover:text-destructive transition-colors"
+                >
+                  <LogOut className="w-3 h-3" />
+                  Выйти
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 font-mono text-xs border border-border px-3 py-2 hover:border-destructive hover:text-destructive transition-colors"
-              >
-                <LogOut className="w-3 h-3" />
-                Выйти
-              </button>
+
+              {/* Bonus balance card */}
+              <div className="bg-surface border-2 border-orange/40 p-5 flex flex-col items-center justify-center gap-1">
+                <Gift className="w-6 h-6 text-orange" />
+                <span className="font-display text-4xl text-orange">{bonusPoints}</span>
+                <span className="font-mono text-xs text-muted-foreground">бонусных баллов</span>
+                {bonusPoints > 0 && (
+                  <span className="font-mono text-xs text-muted-foreground text-center mt-1">
+                    ≈ {formatPrice(bonusPoints)} скидки
+                  </span>
+                )}
+              </div>
             </div>
 
             {loading ? (
