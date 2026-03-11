@@ -301,7 +301,7 @@ export default function BookingPage() {
                 </div>
               </div>
               <Link
-                to="/admin/login"
+                to="/register?returnTo=/booking"
                 className="inline-flex items-center gap-2 bg-orange text-primary-foreground px-5 py-2.5 font-mono text-sm hover:bg-orange-bright transition-colors shadow-brutal-sm"
               >
                 <UserPlus className="w-4 h-4" />

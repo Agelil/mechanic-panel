@@ -89,24 +89,59 @@ export default function CabinetPage() {
   const [clientName, setClientName] = useState<string | null>(null);
   const [needsName, setNeedsName] = useState(false);
 
+  // Check for Supabase auth session (email login)
+  const [emailUser, setEmailUser] = useState<{ id: string; email: string; fullName: string } | null>(null);
+
   useEffect(() => {
-    const saved = localStorage.getItem("tg_cabinet_user");
-    if (saved) {
-      try {
-        const user = JSON.parse(saved) as TelegramUser;
-        const now = Math.floor(Date.now() / 1000);
-        if (now - user.auth_date < 86400) {
-          setTgUser(user);
-          loadClientData(user);
+    // Check Supabase auth first
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        
+        const fullName = profile?.full_name || session.user.user_metadata?.full_name || session.user.email || "";
+        setEmailUser({ id: session.user.id, email: session.user.email || "", fullName });
+
+        // Find phone from registry
+        const { data: reg } = await supabase
+          .from("users_registry" as any)
+          .select("phone")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        const regPhone = (reg as any)?.phone;
+        if (regPhone) {
+          setPhone(regPhone);
+          loadClientDataByPhone(regPhone, fullName);
         } else {
-          localStorage.removeItem("tg_cabinet_user");
+          // Try to find by email in clients
+          setLoading(false);
+          setNeedsName(!fullName || !/^\S+\s+\S+/.test(fullName.trim()));
         }
-      } catch { localStorage.removeItem("tg_cabinet_user"); }
-    }
+        return;
+      }
+
+      // Fallback: Telegram session
+      const saved = localStorage.getItem("tg_cabinet_user");
+      if (saved) {
+        try {
+          const user = JSON.parse(saved) as TelegramUser;
+          const now = Math.floor(Date.now() / 1000);
+          if (now - user.auth_date < 86400) {
+            setTgUser(user);
+            loadClientData(user);
+          } else {
+            localStorage.removeItem("tg_cabinet_user");
+          }
+        } catch { localStorage.removeItem("tg_cabinet_user"); }
+      }
+    });
   }, []);
 
   useEffect(() => {
-    if (tgUser || !widgetRef.current) return;
+    if (tgUser || emailUser || !widgetRef.current) return;
     (window as unknown as Record<string, unknown>).onTelegramAuth = (user: TelegramUser) => {
       localStorage.setItem("tg_cabinet_user", JSON.stringify(user));
       setTgUser(user);
@@ -124,7 +159,72 @@ export default function CabinetPage() {
       script.async = true;
       widgetRef.current?.appendChild(script);
     });
-  }, [tgUser]);
+  }, [tgUser, emailUser]);
+
+  const loadAppointmentsByPhone = async (clientPhone: string) => {
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("key, value")
+      .in("key", ["max_bonus_payment_percentage", "bonus_percentage"]);
+    if (settings) {
+      const maxPctSetting = settings.find((s) => s.key === "max_bonus_payment_percentage");
+      if (maxPctSetting?.value) setMaxBonusPct(parseFloat(maxPctSetting.value) || 30);
+      const bonusPctSetting = settings.find((s) => s.key === "bonus_percentage");
+      if (bonusPctSetting?.value) setBonusPct(parseFloat(bonusPctSetting.value) || 0);
+    }
+
+    const { data: appts } = await supabase
+      .from("appointments")
+      .select("id, car_make, license_plate, service_type, status, created_at, total_price, services, work_items, parts_cost, services_cost")
+      .eq("phone", clientPhone)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (appts && appts.length > 0) {
+      const apptIds = appts.map((a) => a.id);
+      const { data: docs } = await supabase
+        .from("appointment_documents")
+        .select("*")
+        .in("appointment_id", apptIds);
+
+      const apptsWithDocs = appts.map((a) => ({
+        ...a,
+        services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
+        work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
+        parts_cost: (a as any).parts_cost ?? 0,
+        services_cost: (a as any).services_cost ?? 0,
+        documents: docs?.filter((d) => d.appointment_id === a.id) || [],
+      }));
+      setAppointments(apptsWithDocs);
+    }
+
+    const { data: client } = await supabase
+      .from("clients")
+      .select("bonus_points, name")
+      .eq("phone", clientPhone)
+      .maybeSingle();
+    if (client) {
+      setBonusPoints(client.bonus_points || 0);
+      setClientName(client.name || null);
+      const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
+      setNeedsName(!hasFullName);
+    } else {
+      setNeedsName(true);
+    }
+  };
+
+  const loadClientDataByPhone = async (clientPhone: string, name: string) => {
+    setLoading(true);
+    try {
+      await loadAppointmentsByPhone(clientPhone);
+      if (name && /^\S+\s+\S+/.test(name.trim())) {
+        setNeedsName(false);
+        setClientName(name);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadClientData = async (user: TelegramUser) => {
     setLoading(true);
@@ -136,72 +236,23 @@ export default function CabinetPage() {
         .maybeSingle();
 
       const clientPhone = tgSession?.phone || phone;
-      if (clientPhone) setPhone(clientPhone);
-
-      // Load settings
-      const { data: settings } = await supabase
-        .from("settings")
-        .select("key, value")
-        .in("key", ["max_bonus_payment_percentage", "bonus_percentage"]);
-      if (settings) {
-        const maxPctSetting = settings.find((s) => s.key === "max_bonus_payment_percentage");
-        if (maxPctSetting?.value) setMaxBonusPct(parseFloat(maxPctSetting.value) || 30);
-        const bonusPctSetting = settings.find((s) => s.key === "bonus_percentage");
-        if (bonusPctSetting?.value) setBonusPct(parseFloat(bonusPctSetting.value) || 0);
-      }
-
       if (clientPhone) {
-        const { data: appts } = await supabase
-          .from("appointments")
-          .select("id, car_make, license_plate, service_type, status, created_at, total_price, services, work_items, parts_cost, services_cost")
-          .eq("phone", clientPhone)
-          .order("created_at", { ascending: false })
-          .limit(50);
-
-        if (appts && appts.length > 0) {
-          const apptIds = appts.map((a) => a.id);
-          const { data: docs } = await supabase
-            .from("appointment_documents")
-            .select("*")
-            .in("appointment_id", apptIds);
-
-          const apptsWithDocs = appts.map((a) => ({
-            ...a,
-            services: Array.isArray(a.services) ? a.services as { name: string; price_from: number }[] : null,
-            work_items: Array.isArray(a.work_items) ? (a.work_items as unknown as WorkItem[]) : [],
-            parts_cost: (a as any).parts_cost ?? 0,
-            services_cost: (a as any).services_cost ?? 0,
-            documents: docs?.filter((d) => d.appointment_id === a.id) || [],
-          }));
-          setAppointments(apptsWithDocs);
-        }
-
-        const { data: client } = await supabase
-          .from("clients")
-          .select("bonus_points, name")
-          .eq("phone", clientPhone)
-          .maybeSingle();
-        if (client) {
-          setBonusPoints(client.bonus_points || 0);
-          setClientName(client.name || null);
-          // Check if name has at least 2 words
-          const hasFullName = client.name && /^\S+\s+\S+/.test(client.name.trim());
-          setNeedsName(!hasFullName);
-        } else {
-          setNeedsName(true);
-        }
+        setPhone(clientPhone);
+        await loadAppointmentsByPhone(clientPhone);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem("tg_cabinet_user");
     setTgUser(null);
+    setEmailUser(null);
     setAppointments([]);
     setPhone(null);
     setBonusPoints(0);
+    await supabase.auth.signOut();
   };
 
   const activeOrders = appointments.filter((a) => !TERMINAL.includes(a.status));
@@ -246,23 +297,33 @@ export default function CabinetPage() {
       </section>
 
       <div className="container mx-auto px-4 py-10">
-        {!tgUser ? (
+        {!tgUser && !emailUser ? (
           <div className="max-w-md mx-auto text-center">
             <div className="bg-surface border-2 border-border p-10 shadow-brutal">
               <div className="w-16 h-16 bg-orange/10 border-2 border-orange/20 flex items-center justify-center mx-auto mb-6">
                 <Shield className="w-8 h-8 text-orange" />
               </div>
-              <h2 className="font-display text-3xl tracking-wider mb-3">ВОЙДИТЕ ЧЕРЕЗ TELEGRAM</h2>
+              <h2 className="font-display text-3xl tracking-wider mb-3">ВОЙДИТЕ В КАБИНЕТ</h2>
               <p className="font-mono text-sm text-muted-foreground mb-8 leading-relaxed">
-                Для доступа к личному кабинету войдите через официальный Telegram Login Widget.
+                Для доступа к истории заказов, документам и бонусам.
               </p>
+              
+              {/* Email login button */}
+              <a
+                href="/login?returnTo=/cabinet"
+                className="w-full inline-flex items-center justify-center gap-2 bg-orange text-primary-foreground px-6 py-3 font-display text-xl tracking-widest hover:bg-orange-bright transition-colors mb-4"
+              >
+                Войти по Email
+              </a>
+
+              {/* Telegram widget */}
+              <p className="font-mono text-xs text-muted-foreground mb-3">или через Telegram</p>
               <div ref={widgetRef} className="flex justify-center mb-6" />
-              <div className="mt-6 bg-orange/5 border border-orange/20 p-4 text-left">
+
+              <div className="mt-4 bg-orange/5 border border-orange/20 p-4 text-left">
                 <p className="font-mono text-xs text-muted-foreground leading-relaxed">
-                  <span className="text-orange font-bold">Нет Telegram?</span><br />
-                  Используйте нашего бота: напишите{" "}
-                  <span className="text-orange">/start</span> и команду{" "}
-                  <span className="text-orange">/status [телефон]</span>
+                  <span className="text-orange font-bold">Нет аккаунта?</span>{" "}
+                  <a href="/register?returnTo=/cabinet" className="text-orange hover:text-orange-bright underline">Зарегистрироваться</a>
                 </p>
               </div>
             </div>
@@ -273,7 +334,7 @@ export default function CabinetPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2 bg-surface border-2 border-border p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  {tgUser.photo_url ? (
+                  {tgUser?.photo_url ? (
                     <img src={tgUser.photo_url} alt="Avatar" className="w-12 h-12 object-cover border-2 border-orange" />
                   ) : (
                     <div className="w-12 h-12 bg-orange/10 border-2 border-orange/20 flex items-center justify-center">
@@ -282,9 +343,12 @@ export default function CabinetPage() {
                   )}
                   <div>
                     <p className="font-display text-2xl tracking-wider">
-                      {tgUser.first_name} {tgUser.last_name || ""}
+                      {emailUser ? emailUser.fullName : `${tgUser?.first_name || ""} ${tgUser?.last_name || ""}`.trim()}
                     </p>
-                    {tgUser.username && (
+                    {emailUser && (
+                      <p className="font-mono text-xs text-muted-foreground">{emailUser.email}</p>
+                    )}
+                    {tgUser?.username && (
                       <p className="font-mono text-xs text-muted-foreground">@{tgUser.username}</p>
                     )}
                     {phone && (
