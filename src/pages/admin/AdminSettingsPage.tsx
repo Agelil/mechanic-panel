@@ -340,13 +340,101 @@ function SettingField({
   value,
   onChange,
   onToggle,
+  readOnly = false,
 }: {
   field: SettingField;
   value: string;
   onChange: (v: string) => void;
   onToggle: () => void;
+  readOnly?: boolean;
 }) {
-  const inputCls = "w-full bg-background border-2 border-border px-4 py-3 font-mono text-sm focus:outline-none focus:border-orange transition-colors";
+  const inputCls = `w-full bg-background border-2 px-4 py-3 font-mono text-sm focus:outline-none transition-colors ${
+    readOnly ? "border-border/50 text-muted-foreground cursor-not-allowed" : "border-border focus:border-orange"
+  }`;
+
+  if (field.type === "toggle") {
+    const isOn = value === "true";
+    return (
+      <div
+        onClick={readOnly ? undefined : onToggle}
+        className={`flex items-center justify-between p-4 border-2 border-border transition-colors select-none ${readOnly ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-orange/30"}`}
+      >
+        <div>
+          <span className="font-mono text-sm font-bold block">{field.label}</span>
+          {field.hint && <span className="font-mono text-xs text-muted-foreground">{field.hint}</span>}
+        </div>
+        <div className="flex-shrink-0 ml-4">
+          {isOn
+            ? <ToggleRight className="w-8 h-8 text-orange" />
+            : <ToggleLeft className="w-8 h-8 text-muted-foreground" />
+          }
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "radio" && field.options) {
+    return (
+      <div>
+        <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">{field.label}</label>
+        <div className={`space-y-2 ${readOnly ? "opacity-60 pointer-events-none" : ""}`}>
+          {field.options.map((opt) => (
+            <label
+              key={opt.value}
+              className={`flex items-start gap-3 p-3 cursor-pointer border-2 transition-colors ${value === opt.value ? "border-orange bg-orange/5" : "border-border hover:border-orange/30"}`}
+            >
+              <input
+                type="radio"
+                name={field.key}
+                value={opt.value}
+                checked={value === opt.value}
+                onChange={() => onChange(opt.value)}
+                disabled={readOnly}
+                className="mt-0.5 accent-orange flex-shrink-0"
+              />
+              <div>
+                <span className="font-mono text-sm font-bold block">{opt.label}</span>
+                <span className="font-mono text-xs text-muted-foreground">{opt.desc}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "textarea") {
+    return (
+      <div>
+        <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">{field.label}</label>
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          rows={3}
+          readOnly={readOnly}
+          className={inputCls + " resize-none"}
+        />
+        {field.hint && <p className="font-mono text-xs text-muted-foreground mt-1">{field.hint}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="font-mono text-xs text-muted-foreground uppercase tracking-widest block mb-2">{field.label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder}
+        readOnly={readOnly}
+        className={inputCls}
+      />
+      {field.hint && <p className="font-mono text-xs text-muted-foreground mt-1">{field.hint}</p>}
+    </div>
+  );
+}
 
   if (field.type === "toggle") {
     const isOn = value === "true";
