@@ -39,7 +39,7 @@ const ROLE_LABELS: Record<AppRole, { label: string; color: string }> = {
 
 export default function AdminAccessPage() {
   const { toast } = useToast();
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState<RegistryUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("pending");
