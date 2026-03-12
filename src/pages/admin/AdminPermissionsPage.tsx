@@ -116,7 +116,7 @@ export default function AdminPermissionsPage() {
     return n;
   }, [matrix, original]);
 
-  if (!isAtLeast("admin")) {
+  if (!hasPermission("view_permissions")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">

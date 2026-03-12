@@ -81,7 +81,7 @@ export default function AdminSystemPage() {
     toast({ title: "Сброс выполнен", description: "Используются параметры по умолчанию (.env)" });
   };
 
-  if (!isAtLeast("admin")) {
+  if (!hasPermission("view_system")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">

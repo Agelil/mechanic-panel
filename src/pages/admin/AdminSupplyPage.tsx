@@ -424,7 +424,7 @@ export default function AdminSupplyPage() {
                 </div>
 
                 {/* Status changer (admin/manager only) */}
-                {isAtLeast("manager") && (
+                {hasPermission("edit_supply_order") && (
                   <div className="flex-shrink-0 relative">
                     <select
                       value={order.status}

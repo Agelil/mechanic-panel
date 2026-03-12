@@ -207,7 +207,7 @@ export default function AdminGroupsPage() {
       .filter((s) => s.permissions.length > 0);
   }, [search]);
 
-  if (!isAtLeast("admin")) {
+  if (!hasPermission("view_groups")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">

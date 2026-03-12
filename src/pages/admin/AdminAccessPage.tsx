@@ -163,7 +163,7 @@ export default function AdminAccessPage() {
         || (p.phone || "").toLowerCase().includes(s);
     });
 
-  if (!isAtLeast("manager")) {
+  if (!hasPermission("view_users")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
