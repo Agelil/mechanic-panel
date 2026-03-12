@@ -58,7 +58,7 @@ function mergePerms(stored: Record<string, unknown>): GroupPermissions {
 
 export default function AdminGroupsPage() {
   const { toast } = useToast();
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [groups, setGroups] = useState<UserGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
