@@ -5,7 +5,7 @@ import {
   XCircle, AlertTriangle, ChevronDown, ShoppingCart, Filter
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 
 type SupplyType = "part" | "tool" | "consumable";
 type SupplyUrgency = "urgent" | "planned";
