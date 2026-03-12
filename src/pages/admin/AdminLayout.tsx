@@ -75,7 +75,7 @@ function useConnectionStatus() {
 
 export default function AdminLayout() {
   const location = useLocation();
-  const { session, role, loading, hasPermission, isOwner, signOut, user } = useAuth();
+  const { session, role, loading, hasPermission, isOwner, signOut, user, groupDisplayName } = useAuth();
   const isOffline = useConnectionStatus();
 
   useAuthGuard();
