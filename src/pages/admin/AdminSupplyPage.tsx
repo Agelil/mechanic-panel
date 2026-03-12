@@ -47,7 +47,7 @@ const URGENCY_CONFIG: Record<SupplyUrgency, { label: string; color: string }> = 
 
 export default function AdminSupplyPage() {
   const { toast } = useToast();
-  const { role, isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [orders, setOrders] = useState<SupplyOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<SupplyStatus | "all">("all");
