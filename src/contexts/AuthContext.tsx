@@ -401,14 +401,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback((permission: string): boolean => {
     const { role } = state;
     if (!role) return false;
-    if (role === "admin") return true;
-    // Use DB-loaded permissions cache if available, fall back to static map
+    // Owner always has all permissions
+    if (state.user?.email === OWNER_EMAIL) return true;
+    // Check merged permissions cache (role_permissions + user_groups)
     const userId = currentUserIdRef.current;
     if (userId && dbPermissionsCache.has(userId)) {
       return dbPermissionsCache.get(userId)!.has(permission);
     }
+    // Fallback to static map
     return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
-  }, [state.role]);
+  }, [state.role, state.user?.email]);
 
   const isAtLeast = useCallback((minRole: "master" | "manager" | "admin"): boolean => {
     const hierarchy = { admin: 3, manager: 2, master: 1 };
@@ -419,10 +421,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearRoleCache();
     roleFetchedRef.current = null;
     currentUserIdRef.current = null;
+    dbPermissionsCache.delete(currentUserIdRef.current || "");
+    userGroupInfoCache.delete(currentUserIdRef.current || "");
     await supabase.auth.signOut();
   }, []);
 
   const isOwner = state.user?.email === OWNER_EMAIL;
+  const groupDisplayName = currentUserIdRef.current
+    ? userGroupInfoCache.get(currentUserIdRef.current) ?? null
+    : null;
 
   return (
     <AuthContext.Provider value={{
@@ -435,6 +442,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isOwner,
       hasPermission,
       isAtLeast,
+      groupDisplayName,
       refreshRole,
       signOut,
     }}>
