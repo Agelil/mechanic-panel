@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 export default function AdminSystemPage() {
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const { toast } = useToast();
 
   const [config, setConfig] = useState<AppConfig>({ supabase_url: "", supabase_key: "", encryption_key: "" });
