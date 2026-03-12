@@ -29,9 +29,9 @@ const allNavItems = [
 ];
 
 const ROLE_BADGE: Record<string, string> = {
-  admin:   "ADMIN",
-  manager: "MANAGER",
-  master:  "MASTER",
+  admin:   "АДМИНИСТРАТОР",
+  manager: "МЕНЕДЖЕР",
+  master:  "МАСТЕР",
 };
 
 function NavSkeleton() {
