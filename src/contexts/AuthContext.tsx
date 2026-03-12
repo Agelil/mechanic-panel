@@ -20,9 +20,11 @@ import {
 // ── Types ────────────────────────────────────────────────────────────────────
 export type AppRole = "admin" | "master" | "manager" | null;
 
-// DB-driven permissions — loaded per user based on their role
-// This map is populated after role is fetched
+// DB-driven permissions — loaded per user from role_permissions + user_groups
+// This merges both permission sources into a single set
 const dbPermissionsCache = new Map<string, Set<string>>(); // userId → Set<permission>
+// Group display info cache
+const userGroupInfoCache = new Map<string, string>(); // userId → group display name
 
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: [
