@@ -180,8 +180,10 @@ export default function AdminLayout() {
           <p className="font-mono text-xs text-muted-foreground mb-1 truncate">
             {session.user.email}
           </p>
-          {role && (
-            <p className="font-mono text-xs text-orange mb-3">{ROLE_BADGE[role]}</p>
+          {(groupDisplayName || role) && (
+            <p className="font-mono text-xs text-orange mb-3">
+              {groupDisplayName || (role && ROLE_BADGE[role]) || ""}
+            </p>
           )}
           <div className="flex gap-2">
             <Link
