@@ -18,7 +18,7 @@ type Matrix = Record<AppRole, Set<string>>;
 
 export default function AdminPermissionsPage() {
   const { toast } = useToast();
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [matrix, setMatrix] = useState<Matrix>({ admin: new Set(), manager: new Set(), master: new Set() });
   const [original, setOriginal] = useState<Matrix>({ admin: new Set(), manager: new Set(), master: new Set() });
   const [loading, setLoading] = useState(true);
