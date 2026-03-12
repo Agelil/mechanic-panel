@@ -5,7 +5,7 @@ import {
   ShieldCheck, Hash, Search, RotateCcw, CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import { PERMISSION_SECTIONS } from "@/lib/permissions";
 
 import { Bell, DollarSign, ClipboardList, Package, Image, Tag, UserCog, Star, Grid3x3, Settings, ServerCog, Wrench } from "lucide-react";
