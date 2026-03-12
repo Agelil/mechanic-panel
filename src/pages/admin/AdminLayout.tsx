@@ -29,9 +29,9 @@ const allNavItems = [
 ];
 
 const ROLE_BADGE: Record<string, string> = {
-  admin:   "ADMIN",
-  manager: "MANAGER",
-  master:  "MASTER",
+  admin:   "АДМИНИСТРАТОР",
+  manager: "МЕНЕДЖЕР",
+  master:  "МАСТЕР",
 };
 
 function NavSkeleton() {
@@ -75,7 +75,7 @@ function useConnectionStatus() {
 
 export default function AdminLayout() {
   const location = useLocation();
-  const { session, role, loading, hasPermission, isOwner, signOut, user } = useAuth();
+  const { session, role, loading, hasPermission, isOwner, signOut, user, groupDisplayName } = useAuth();
   const isOffline = useConnectionStatus();
 
   useAuthGuard();
@@ -116,9 +116,6 @@ export default function AdminLayout() {
   if (!session) return null;
 
   const navItems = allNavItems.filter((item) => {
-    // Owner-only sections
-    const ownerOnly = ["view_groups", "edit_permissions", "edit_settings", "view_system"];
-    if (ownerOnly.includes(item.permission) && !isOwner) return false;
     if (!role) return true;
     return hasPermission(item.permission);
   });
@@ -183,8 +180,10 @@ export default function AdminLayout() {
           <p className="font-mono text-xs text-muted-foreground mb-1 truncate">
             {session.user.email}
           </p>
-          {role && (
-            <p className="font-mono text-xs text-orange mb-3">{ROLE_BADGE[role]}</p>
+          {(groupDisplayName || role) && (
+            <p className="font-mono text-xs text-orange mb-3">
+              {groupDisplayName || (role && ROLE_BADGE[role]) || ""}
+            </p>
           )}
           <div className="flex gap-2">
             <Link
@@ -235,9 +234,9 @@ export default function AdminLayout() {
                 <span className="font-mono text-xs text-destructive">Нет связи</span>
               </div>
             )}
-            {role && (
+            {(groupDisplayName || role) && (
               <span className="font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
-                {ROLE_BADGE[role]}
+                {groupDisplayName || (role && ROLE_BADGE[role]) || ""}
               </span>
             )}
           </div>
