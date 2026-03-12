@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Search, Shield, Save, CheckCircle2, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import { PERMISSION_SECTIONS } from "@/lib/permissions";
 
 type AppRole = "admin" | "master" | "manager";
@@ -18,7 +18,7 @@ type Matrix = Record<AppRole, Set<string>>;
 
 export default function AdminPermissionsPage() {
   const { toast } = useToast();
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [matrix, setMatrix] = useState<Matrix>({ admin: new Set(), manager: new Set(), master: new Set() });
   const [original, setOriginal] = useState<Matrix>({ admin: new Set(), manager: new Set(), master: new Set() });
   const [loading, setLoading] = useState(true);
@@ -116,7 +116,7 @@ export default function AdminPermissionsPage() {
     return n;
   }, [matrix, original]);
 
-  if (!isAtLeast("admin")) {
+  if (!hasPermission("view_permissions")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">

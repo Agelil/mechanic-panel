@@ -5,7 +5,7 @@ import {
   XCircle, AlertTriangle, ChevronDown, ShoppingCart, Filter
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 
 type SupplyType = "part" | "tool" | "consumable";
 type SupplyUrgency = "urgent" | "planned";
@@ -47,7 +47,7 @@ const URGENCY_CONFIG: Record<SupplyUrgency, { label: string; color: string }> = 
 
 export default function AdminSupplyPage() {
   const { toast } = useToast();
-  const { role, isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [orders, setOrders] = useState<SupplyOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<SupplyStatus | "all">("all");
@@ -424,7 +424,7 @@ export default function AdminSupplyPage() {
                 </div>
 
                 {/* Status changer (admin/manager only) */}
-                {isAtLeast("manager") && (
+                {hasPermission("edit_supply_order") && (
                   <div className="flex-shrink-0 relative">
                     <select
                       value={order.status}

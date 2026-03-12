@@ -4,7 +4,7 @@ import {
   CheckCircle2, XCircle, Loader2, UserCheck, Shield, Clock, Search, UserCog, RefreshCw, UserPlus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
   SelectContent,
@@ -39,7 +39,7 @@ const ROLE_LABELS: Record<AppRole, { label: string; color: string }> = {
 
 export default function AdminAccessPage() {
   const { toast } = useToast();
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState<RegistryUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("pending");
@@ -163,7 +163,7 @@ export default function AdminAccessPage() {
         || (p.phone || "").toLowerCase().includes(s);
     });
 
-  if (!isAtLeast("manager")) {
+  if (!hasPermission("view_users")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">

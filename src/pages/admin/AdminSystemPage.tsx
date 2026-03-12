@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadAppConfig, saveConfigToStorage, clearConfigFromStorage,
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 export default function AdminSystemPage() {
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const { toast } = useToast();
 
   const [config, setConfig] = useState<AppConfig>({ supabase_url: "", supabase_key: "", encryption_key: "" });
@@ -81,7 +81,7 @@ export default function AdminSystemPage() {
     toast({ title: "Сброс выполнен", description: "Используются параметры по умолчанию (.env)" });
   };
 
-  if (!isAtLeast("admin")) {
+  if (!hasPermission("view_system")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">

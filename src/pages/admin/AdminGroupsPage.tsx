@@ -5,7 +5,7 @@ import {
   ShieldCheck, Hash, Search, RotateCcw, CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import { PERMISSION_SECTIONS } from "@/lib/permissions";
 
 import { Bell, DollarSign, ClipboardList, Package, Image, Tag, UserCog, Star, Grid3x3, Settings, ServerCog, Wrench } from "lucide-react";
@@ -58,7 +58,7 @@ function mergePerms(stored: Record<string, unknown>): GroupPermissions {
 
 export default function AdminGroupsPage() {
   const { toast } = useToast();
-  const { isAtLeast } = useUserRole();
+  const { hasPermission } = useAuth();
   const [groups, setGroups] = useState<UserGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -207,7 +207,7 @@ export default function AdminGroupsPage() {
       .filter((s) => s.permissions.length > 0);
   }, [search]);
 
-  if (!isAtLeast("admin")) {
+  if (!hasPermission("view_groups")) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
