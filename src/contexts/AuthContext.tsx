@@ -158,14 +158,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (DEV) console.log("[Auth] Role from sessionStorage cache:", cached);
         dispatch({ type: "ROLE_SET", role: cached as AppRole });
         roleFetchedRef.current = userId;
-        // Still load permissions from DB in background
-        supabase
-          .from("role_permissions")
-          .select("permission")
-          .eq("role", cached as "admin" | "manager" | "master")
-          .then(({ data }) => {
-            if (data) dbPermissionsCache.set(userId, new Set(data.map((d: { permission: string }) => d.permission)));
-          });
+        // Load all permissions in background
+        loadAllPermissions(userId, cached);
         return;
       }
     }
@@ -182,7 +176,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       if (DEV) console.warn("[Auth] Role fetch error:", error.code, error.message);
-      // При сбое — пробуем кэш, не сбрасываем роль
       const cached = getCachedRole(userId);
       if (cached) dispatch({ type: "ROLE_SET", role: cached as AppRole });
       return;
@@ -194,19 +187,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     roleFetchedRef.current = userId;
     if (r) {
       cacheRole(userId, r);
-      // Load granular permissions from role_permissions table
-      const { data: permsData } = await supabase
-        .from("role_permissions")
-        .select("permission")
-        .eq("role", r);
-      if (permsData) {
-        dbPermissionsCache.set(userId, new Set(permsData.map((d: { permission: string }) => d.permission)));
-        if (DEV) console.log("[Auth] Loaded", permsData.length, "permissions for role:", r);
-      }
+      await loadAllPermissions(userId, r);
     } else {
       clearRoleCache();
       dbPermissionsCache.delete(userId);
+      userGroupInfoCache.delete(userId);
     }
+  }, []);
+
+  /**
+   * Load permissions from BOTH sources:
+   * 1. role_permissions table (by user's app_role enum)
+   * 2. user_groups (via user_group_members) — the toggles from admin UI
+   * Merge into a single Set for fast lookup.
+   */
+  const loadAllPermissions = useCallback(async (userId: string, role: string) => {
+    const merged = new Set<string>();
+
+    // Source 1: role_permissions table
+    const { data: rolePerms } = await supabase
+      .from("role_permissions")
+      .select("permission")
+      .eq("role", role as "admin" | "manager" | "master");
+    if (rolePerms) {
+      rolePerms.forEach((d: { permission: string }) => merged.add(d.permission));
+    }
+
+    // Source 2: user_groups via user_group_members
+    const { data: memberships } = await supabase
+      .from("user_group_members")
+      .select("group_id")
+      .eq("user_id", userId);
+
+    if (memberships && memberships.length > 0) {
+      const groupIds = memberships.map((m) => m.group_id);
+      const { data: groups } = await supabase
+        .from("user_groups")
+        .select("id, name, permissions")
+        .in("id", groupIds);
+
+      if (groups && groups.length > 0) {
+        // Use first group name as display name
+        userGroupInfoCache.set(userId, groups[0].name);
+        // Merge all group permissions (true values only)
+        for (const g of groups) {
+          const perms = (g.permissions || {}) as Record<string, unknown>;
+          for (const [key, val] of Object.entries(perms)) {
+            if (val === true) merged.add(key);
+          }
+        }
+      }
+    }
+
+    // Fallback: if no DB permissions loaded, use static map
+    if (merged.size === 0 && ROLE_PERMISSIONS[role]) {
+      ROLE_PERMISSIONS[role].forEach((p) => merged.add(p));
+    }
+
+    dbPermissionsCache.set(userId, merged);
+    if (DEV) console.log("[Auth] Loaded", merged.size, "merged permissions for", role);
   }, []);
 
   const refreshRole = useCallback(async () => {
