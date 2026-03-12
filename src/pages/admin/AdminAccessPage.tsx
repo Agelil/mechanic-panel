@@ -4,7 +4,7 @@ import {
   CheckCircle2, XCircle, Loader2, UserCheck, Shield, Clock, Search, UserCog, RefreshCw, UserPlus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
   SelectContent,
