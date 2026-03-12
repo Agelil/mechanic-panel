@@ -234,9 +234,9 @@ export default function AdminLayout() {
                 <span className="font-mono text-xs text-destructive">Нет связи</span>
               </div>
             )}
-            {role && (
+            {(groupDisplayName || role) && (
               <span className="font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
-                {ROLE_BADGE[role]}
+                {groupDisplayName || (role && ROLE_BADGE[role]) || ""}
               </span>
             )}
           </div>
