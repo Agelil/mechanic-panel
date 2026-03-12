@@ -125,6 +125,7 @@ interface AuthContextValue {
   isOwner: boolean;
   hasPermission: (p: string) => boolean;
   isAtLeast: (min: "master" | "manager" | "admin") => boolean;
+  groupDisplayName: string | null;
   refreshRole: () => Promise<void>;
   signOut: () => Promise<void>;
 }
