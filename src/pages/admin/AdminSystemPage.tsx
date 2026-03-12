@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useUserRole } from "@/hooks/use-user-role";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadAppConfig, saveConfigToStorage, clearConfigFromStorage,
