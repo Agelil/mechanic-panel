@@ -1,38 +1,11 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard, Wrench, Images, ClipboardList,
-  Settings, LogOut, Menu, X, ChevronRight, Tag, Users, FolderOpen, UserCog, Star,
-  ShieldCheck, ServerCog, ShoppingCart, UsersRound, WifiOff, BookOpen
-} from "lucide-react";
+import { LogOut, Menu, X, ChevronRight, Wrench, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { supabase } from "@/integrations/supabase/client";
-
-const allNavItems = [
-  { href: "/admin",             label: "Дашборд",        icon: LayoutDashboard, exact: true, permission: "view_dashboard" },
-  { href: "/admin/appointments",label: "Заявки",          icon: ClipboardList,               permission: "view_appointments" },
-  { href: "/admin/supply",      label: "Снабжение",       icon: ShoppingCart,                permission: "view_appointments" },
-  { href: "/admin/services",    label: "Услуги",           icon: Wrench,                      permission: "view_services" },
-  { href: "/admin/categories",  label: "Категории",        icon: FolderOpen,                  permission: "view_categories" },
-  { href: "/admin/portfolio",   label: "Портфолио",        icon: Images,                      permission: "view_portfolio" },
-  { href: "/admin/promotions",  label: "Акции",            icon: Tag,                         permission: "view_promotions" },
-  { href: "/admin/clients",     label: "Клиенты",          icon: Users,                       permission: "view_clients" },
-  { href: "/admin/reviews",     label: "Отзывы",           icon: Star,                        permission: "view_promotions" },
-  { href: "/admin/users",       label: "Сотрудники",       icon: UserCog,                     permission: "view_users" },
-  { href: "/admin/groups",      label: "Группы и права",   icon: UsersRound,                  permission: "view_groups" },
-  { href: "/admin/access",      label: "Доступ",           icon: ShieldCheck,                 permission: "view_users" },
-  { href: "/admin/settings",    label: "Настройки",        icon: Settings,                    permission: "view_settings" },
-  { href: "/admin/wiki",        label: "База знаний",      icon: BookOpen,                    permission: "view_dashboard" },
-  { href: "/admin/system",      label: "Система",          icon: ServerCog,                   permission: "edit_settings" },
-];
-
-const ROLE_BADGE: Record<string, string> = {
-  admin:   "АДМИНИСТРАТОР",
-  manager: "МЕНЕДЖЕР",
-  master:  "МАСТЕР",
-};
+import { NAV_ITEMS, ROLE_BADGE } from "@/config/navigation";
 
 function NavSkeleton() {
   return (
@@ -48,36 +21,29 @@ function NavSkeleton() {
   );
 }
 
-/** Проверяет сессию и возвращает true если есть проблемы со связью */
 function useConnectionStatus() {
   const [offline, setOffline] = useState(false);
-
   useEffect(() => {
     const check = async () => {
       const { error } = await supabase.auth.getSession();
       setOffline(!!error);
     };
-
-    // Проверяем при потере сети
     const handleOffline = () => setOffline(true);
     const handleOnline = () => { setOffline(false); check(); };
-
     window.addEventListener("offline", handleOffline);
-    window.addEventListener("online",  handleOnline);
+    window.addEventListener("online", handleOnline);
     return () => {
       window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("online",  handleOnline);
+      window.removeEventListener("online", handleOnline);
     };
   }, []);
-
   return offline;
 }
 
 export default function AdminLayout() {
   const location = useLocation();
-  const { session, role, loading, hasPermission, isOwner, signOut, user, groupDisplayName } = useAuth();
+  const { session, role, loading, hasPermission, signOut, user, groupDisplayName } = useAuth();
   const isOffline = useConnectionStatus();
-
   useAuthGuard();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -95,12 +61,11 @@ export default function AdminLayout() {
       });
   }, [user?.id]);
 
-  const isActive = (item: typeof allNavItems[0]) => {
+  const isActive = (item: typeof NAV_ITEMS[0]) => {
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
   };
 
-  // Глобальный спиннер пока Auth не инициализировался
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -112,17 +77,22 @@ export default function AdminLayout() {
     );
   }
 
-  // Нет сессии — guard сделает редирект, не мигаем
   if (!session) return null;
 
-  const navItems = allNavItems.filter((item) => {
-    if (!role) return true;
-    return hasPermission(item.permission);
-  });
+  // Dynamic permission-based filtering
+  const navItems = NAV_ITEMS.filter((item) => hasPermission(item.permission));
+
+  const panelLabel =
+    position === "Мастер" ? "Панель мастера"
+    : position === "Менеджер" ? "Панель менеджера"
+    : position === "Снабженец" ? "Панель снабжения"
+    : "Admin Panel";
+
+  const roleBadge = groupDisplayName || (role && ROLE_BADGE[role]) || "";
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* ── Sidebar ── */}
+      {/* Sidebar */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r-2 border-sidebar-border flex flex-col transition-transform duration-200",
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
@@ -136,16 +106,11 @@ export default function AdminLayout() {
             <p className="font-display text-sm tracking-widest">
               СЕРВИС<span className="text-orange">-</span>ТОЧКА
             </p>
-            <p className="font-mono text-xs text-muted-foreground">
-              {position === "Мастер" ? "Панель мастера"
-                : position === "Менеджер" ? "Панель менеджера"
-                : position === "Снабженец" ? "Панель снабжения"
-                : "Admin Panel"}
-            </p>
+            <p className="font-mono text-xs text-muted-foreground">{panelLabel}</p>
           </div>
         </div>
 
-        {/* Nav */}
+        {/* Nav — dynamic from permissions */}
         {!role ? (
           <NavSkeleton />
         ) : (
@@ -180,10 +145,8 @@ export default function AdminLayout() {
           <p className="font-mono text-xs text-muted-foreground mb-1 truncate">
             {session.user.email}
           </p>
-          {(groupDisplayName || role) && (
-            <p className="font-mono text-xs text-orange mb-3">
-              {groupDisplayName || (role && ROLE_BADGE[role]) || ""}
-            </p>
+          {roleBadge && (
+            <p className="font-mono text-xs text-orange mb-3">{roleBadge}</p>
           )}
           <div className="flex gap-2">
             <Link
@@ -212,9 +175,8 @@ export default function AdminLayout() {
         />
       )}
 
-      {/* ── Main ── */}
+      {/* Main */}
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
-        {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background border-b-2 border-border h-14 flex items-center px-4 gap-4">
           <button
             className="lg:hidden text-muted-foreground hover:text-foreground"
@@ -225,23 +187,20 @@ export default function AdminLayout() {
           <div className="font-mono text-xs text-muted-foreground">
             {navItems.find(isActive)?.label || "Admin"}
           </div>
-
           <div className="ml-auto flex items-center gap-3">
-            {/* Индикатор потери связи */}
             {isOffline && (
               <div className="flex items-center gap-1.5 border border-destructive/30 bg-destructive/10 px-2 py-1">
                 <WifiOff className="w-3 h-3 text-destructive" />
                 <span className="font-mono text-xs text-destructive">Нет связи</span>
               </div>
             )}
-            {(groupDisplayName || role) && (
+            {roleBadge && (
               <span className="font-mono text-xs text-orange border border-orange/30 px-2 py-0.5">
-                {groupDisplayName || (role && ROLE_BADGE[role]) || ""}
+                {roleBadge}
               </span>
             )}
           </div>
         </header>
-
         <main className="flex-1 p-6">
           <Outlet />
         </main>
